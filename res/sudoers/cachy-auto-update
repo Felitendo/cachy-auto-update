@@ -1,0 +1,19 @@
+# Privilege bridge for unattended AUR updates.
+#
+# makepkg, paru and yay refuse to run as root, so the update service runs them
+# as the "cachy-auto-update" system account. That account then needs to be able
+# to hand the finished packages to pacman without a human typing a password.
+#
+# The account is created by sysusers.d with no password and /usr/bin/nologin:
+# it cannot be logged into, and only root can become it. Since the service that
+# uses it already runs as root, this rule does not widen the trust boundary -
+# it only lets an existing root process take the detour that makepkg demands.
+#
+# The rule is deliberately not restricted by arguments. paru and yay call
+# pacman with argument lists that vary per transaction, so any pattern match
+# would give the appearance of a restriction while breaking at random.
+
+Defaults:cachy-auto-update !requiretty
+Defaults:cachy-auto-update env_keep += "PACMAN"
+
+cachy-auto-update ALL=(root) NOPASSWD: /usr/bin/pacman

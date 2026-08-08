@@ -1,0 +1,37 @@
+[Unit]
+Description=CachyOS unattended update run
+Documentation=man:cachy-auto-update(1)
+Documentation=https://github.com/Felitendo/cachy-auto-update
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/cachy-auto-update/cachy-auto-update.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/cachy-auto-update/cachy-auto-update-run
+
+# Tool output has to stay parseable; everything shown to a human is rendered
+# back into their own locale explicitly.
+Environment=LC_ALL=C
+
+# Stay out of the way of whatever the user is actually doing. Building an AUR
+# package should never make the desktop stutter.
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+OOMScoreAdjust=500
+
+# A large AUR package can legitimately take a long time to build.
+TimeoutStartSec=4h
+
+# Deliberately *not* sandboxed the way paccache.service is: this unit installs
+# packages across the whole filesystem and downloads them over the network, so
+# ProtectSystem=, PrivateNetwork= and friends would break it. NoNewPrivileges
+# in particular has to stay off - the AUR step relies on the build account
+# calling sudo.
+NoNewPrivileges=no
+ProtectHostname=yes
+
+# No [Install] section on purpose: this is driven by cachy-auto-update.timer,
+# never wanted by a target of its own.

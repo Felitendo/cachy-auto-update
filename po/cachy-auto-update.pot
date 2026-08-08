@@ -1,0 +1,245 @@
+# Translation template for cachy-auto-update.
+# Copyright (C) 2026 Felitendo
+# This file is distributed under the same license as cachy-auto-update.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: cachy-auto-update 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/Felitendo/cachy-auto-update/issues\n"
+"POT-Creation-Date: 2026-08-08 00:00+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Status labels
+msgid "ON"
+msgstr ""
+
+msgid "OFF"
+msgstr ""
+
+msgid "Automatic updates"
+msgstr ""
+
+msgid "Notifications"
+msgstr ""
+
+msgid "Last check"
+msgstr ""
+
+msgid "Last successful update"
+msgstr ""
+
+msgid "Next scheduled run"
+msgstr ""
+
+msgid "never"
+msgstr ""
+
+msgid "unknown"
+msgstr ""
+
+msgid "not scheduled"
+msgstr ""
+
+#, c-format
+msgid "%d packages"
+msgstr ""
+
+msgid "just now"
+msgstr ""
+
+#, c-format
+msgid "%d minutes ago"
+msgstr ""
+
+#, c-format
+msgid "%d hours ago"
+msgstr ""
+
+#, c-format
+msgid "%d days ago"
+msgstr ""
+
+msgid "The last run reported a problem - see 'cachy-auto-update log'."
+msgstr ""
+
+msgid "A restart is recommended to finish a kernel update."
+msgstr ""
+
+#. Conditions
+msgid "Current conditions:"
+msgstr ""
+
+msgid "on AC power"
+msgstr ""
+
+msgid "on battery"
+msgstr ""
+
+#, c-format
+msgid "on battery (%d%%, threshold %d%%)"
+msgstr ""
+
+msgid "running on battery"
+msgstr ""
+
+#, c-format
+msgid "battery at %d%%, below the %d%% threshold"
+msgstr ""
+
+msgid "no game detected"
+msgstr ""
+
+msgid "a game is running (GameMode)"
+msgstr ""
+
+#, c-format
+msgid "a game is running (%s)"
+msgstr ""
+
+msgid "an application is blocking idle (fullscreen game or video)"
+msgstr ""
+
+msgid "package system is free"
+msgstr ""
+
+msgid "pacman's database is locked by another process"
+msgstr ""
+
+#, c-format
+msgid "%s is currently running"
+msgstr ""
+
+#. Menu
+msgid "Toggle automatic updates"
+msgstr ""
+
+msgid "Toggle notifications"
+msgstr ""
+
+msgid "Update now"
+msgstr ""
+
+msgid "Show log"
+msgstr ""
+
+msgid "Show current conditions"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+
+msgid "Press Enter to continue..."
+msgstr ""
+
+#. Commands
+msgid "Automatic updates are on."
+msgstr ""
+
+msgid "Automatic updates are off."
+msgstr ""
+
+msgid "Notifications are on."
+msgstr ""
+
+msgid "Notifications are off."
+msgstr ""
+
+msgid "This command has to run as root."
+msgstr ""
+
+msgid "Could not write the configuration file."
+msgstr ""
+
+msgid "Could not enable the systemd timer."
+msgstr ""
+
+msgid "/etc/sudoers.d/cachy-auto-update is invalid; refusing to enable."
+msgstr ""
+
+msgid "No AUR helper found - install paru or yay for AUR updates."
+msgstr ""
+
+msgid "base-devel is missing - AUR packages cannot be built without it."
+msgstr ""
+
+msgid "cachy-update also notifies about available updates. Turn its notifications off? [y/N]"
+msgstr ""
+
+msgid "cachy-update's update check has been disabled."
+msgstr ""
+
+msgid "No log yet."
+msgstr ""
+
+#, c-format
+msgid "Unknown command: %s"
+msgstr ""
+
+#. Help
+msgid "Usage: cachy-auto-update [command]"
+msgstr ""
+
+msgid "Usage: cachy-auto-update notifications on|off"
+msgstr ""
+
+msgid "Commands:"
+msgstr ""
+
+msgid "Turn automatic updates on"
+msgstr ""
+
+msgid "Turn automatic updates off"
+msgstr ""
+
+msgid "Turn desktop notifications on or off"
+msgstr ""
+
+msgid "Show the current state and conditions"
+msgstr ""
+
+msgid "Run an update now"
+msgstr ""
+
+msgid "Show the log of the last run"
+msgstr ""
+
+msgid "Show this help"
+msgstr ""
+
+msgid "Show the version"
+msgstr ""
+
+msgid "Without a command an interactive menu is shown."
+msgstr ""
+
+#. Notifications
+msgid "System updated"
+msgstr ""
+
+#, c-format
+msgid "%d updates were installed."
+msgstr ""
+
+msgid "Update failed"
+msgstr ""
+
+msgid "Something went wrong while updating. Run 'cachy-auto-update log' for details."
+msgstr ""
+
+msgid "Restart recommended"
+msgstr ""
+
+msgid "A new kernel was installed. Please restart when it suits you."
+msgstr ""
+
+msgid "Package database locked"
+msgstr ""
+
+msgid "pacman's lock file looks left over from an interrupted update. Updates are paused until it is cleared."
+msgstr ""

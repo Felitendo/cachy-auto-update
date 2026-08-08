@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=CachyOS Auto-Update notifications
+Name[de]=CachyOS Auto-Update Benachrichtigungen
+Comment=Delivers update notifications that arrived while nobody was logged in
+Comment[de]=Stellt Update-Benachrichtigungen zu, die eingingen, während niemand angemeldet war
+Exec=cachy-auto-update --deliver-notifications
+Icon=system-software-update
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=20
+X-KDE-autostart-after=panel
