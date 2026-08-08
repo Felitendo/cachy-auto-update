@@ -135,7 +135,7 @@ CAU_SETTINGS=(
 	"UpdateInterval|choice:6h 12h 1d 2d 1w|1d|Time between update runs"
 	"SkipWhenGaming|bool|yes|Postpone while a game is running"
 	"RequireAC|bool|no|Only update on mains power"
-	"MinBatteryPercent|choice:0 20 30 40 50 60 70 80|40|Minimum battery level (%)"
+	"MinBatteryPercent|choice:0 20 30 40 50 60 70 80|30|Minimum battery level (%)"
 	"UpdateAUR|bool|yes|Update AUR packages"
 	"UpdateFlatpak|bool|yes|Update Flatpaks"
 	"UpdateAppImages|bool|yes|Update AppImages"

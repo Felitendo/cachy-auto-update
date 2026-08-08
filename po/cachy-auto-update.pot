@@ -168,7 +168,7 @@ msgstr ""
 msgid "base-devel is missing - AUR packages cannot be built without it."
 msgstr ""
 
-msgid "cachy-update also notifies about available updates. Turn its notifications off? [y/N]"
+msgid "cachy-update also notifies about available updates. Turn its notifications off? [Y/n]"
 msgstr ""
 
 msgid "cachy-update's update check has been disabled."

@@ -169,8 +169,8 @@ msgstr "Kein AUR-Helper gefunden – für AUR-Updates paru oder yay installieren
 msgid "base-devel is missing - AUR packages cannot be built without it."
 msgstr "base-devel fehlt – ohne das lassen sich AUR-Pakete nicht bauen."
 
-msgid "cachy-update also notifies about available updates. Turn its notifications off? [y/N]"
-msgstr "cachy-update benachrichtigt ebenfalls über verfügbare Updates. Dessen Benachrichtigungen abschalten? [j/N]"
+msgid "cachy-update also notifies about available updates. Turn its notifications off? [Y/n]"
+msgstr "cachy-update benachrichtigt ebenfalls über verfügbare Updates. Dessen Benachrichtigungen abschalten? [J/n]"
 
 msgid "cachy-update's update check has been disabled."
 msgstr "Die Update-Prüfung von cachy-update wurde abgeschaltet."

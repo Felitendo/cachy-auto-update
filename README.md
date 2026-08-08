@@ -74,7 +74,7 @@ deliberately.
 
 A run is postponed — and retried an hour later — when:
 
-- the battery is below 40 % (ignored on mains power; desktops without a battery
+- the battery is below 30 % (ignored on mains power; desktops without a battery
   are never affected),
 - a game is running: GameMode, a known game process, or anything holding a
   blocking idle inhibitor,

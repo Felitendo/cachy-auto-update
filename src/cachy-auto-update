@@ -117,9 +117,17 @@ cau_offer_disable_cachy_update() {
 	(( found )) || return 0
 
 	printf '\n  %s\n  ' \
-		"$(cau_msg "cachy-update also notifies about available updates. Turn its notifications off? [y/N]")"
+		"$(cau_msg "cachy-update also notifies about available updates. Turn its notifications off? [Y/n]")"
 	read -r answer || return 0
-	[[ ${answer,,} == y ]] || return 0
+
+	# Defaults to yes: once updates install themselves, cachy-update's "N
+	# updates available" is purely noise. "j" is accepted too - the prompt is
+	# translated, so a German user types the German letter and used to have
+	# that silently read as "no".
+	case "${answer,,}" in
+		''|y|yes|j|ja) ;;
+		*) return 0 ;;
+	esac
 
 	while read -r user uid; do
 		[[ -n $user ]] || continue

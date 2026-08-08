@@ -134,7 +134,7 @@ cau_config_load() {
 
 	CFG_INTERVAL="$(cau_config_get UpdateInterval 1d)"
 	CFG_INTERVAL_SECONDS="$(cau_duration_to_seconds "$CFG_INTERVAL" 86400)"
-	CFG_MIN_BATTERY="$(cau_config_int MinBatteryPercent 40)"
+	CFG_MIN_BATTERY="$(cau_config_int MinBatteryPercent 30)"
 	CFG_KEEP_OLD="$(cau_config_int KeepOldPackages 3)"
 	CFG_AUR_HELPER="$(cau_config_get AURHelper auto)"
 	CFG_IGNORE_PKG="$(cau_config_get IgnorePkg '')"
