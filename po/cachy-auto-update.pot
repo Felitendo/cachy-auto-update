@@ -269,3 +269,69 @@ msgstr ""
 
 msgid "%d packages are being updated. Please leave the computer switched on until this is done."
 msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "(none)"
+msgstr ""
+
+msgid "Up/Down select - Space or Right changes - q goes back"
+msgstr ""
+
+msgid "Package names separated by spaces, empty to clear:"
+msgstr ""
+
+msgid "Notify when an update starts"
+msgstr ""
+
+msgid "Notify after a successful update"
+msgstr ""
+
+msgid "Notify when something goes wrong"
+msgstr ""
+
+msgid "Notify when a restart is needed"
+msgstr ""
+
+msgid "Time between update runs"
+msgstr ""
+
+msgid "Postpone while a game is running"
+msgstr ""
+
+msgid "Only update on mains power"
+msgstr ""
+
+msgid "Minimum battery level (%)"
+msgstr ""
+
+msgid "Update AUR packages"
+msgstr ""
+
+msgid "Update Flatpaks"
+msgstr ""
+
+msgid "Update AppImages"
+msgstr ""
+
+msgid "Also rebuild -git packages"
+msgstr ""
+
+msgid "AUR helper"
+msgstr ""
+
+msgid "Resolve package conflicts automatically"
+msgstr ""
+
+msgid "Trim the package cache"
+msgstr ""
+
+msgid "Cached versions to keep"
+msgstr ""
+
+msgid "Remove packages nothing needs any more"
+msgstr ""
+
+msgid "Never update these packages"
+msgstr ""

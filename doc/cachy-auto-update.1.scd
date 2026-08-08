@@ -16,7 +16,10 @@ updated in the background, with no password prompt and no terminal.
 
 Run without a command it opens a small interactive menu with the two switches
 that matter - automatic updates on/off and notifications on/off - plus the
-current status.
+current status, and a settings screen covering every remaining option so the
+configuration file never has to be edited by hand. In the settings screen the
+arrow keys select, Space or Right changes a value, and _q_ goes back; every
+change is written out immediately.
 
 The actual work is done by a systemd system service. The timer ticks hourly;
 whether a tick does anything is decided by _UpdateInterval_ (daily by default).

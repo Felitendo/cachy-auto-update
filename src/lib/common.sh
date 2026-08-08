@@ -75,13 +75,34 @@ cau_msg() {
 	cau_msg_in "$(cau_ui_locale)" "$@"
 }
 
+# Translations are memoized. Every gettext lookup is a fork, and the settings
+# screen redraws forty-odd labels per keypress; without this the redraw takes
+# long enough that a keystroke arriving during it is lost when the terminal
+# switches back to single-character mode.
+declare -A CAU_MSG_CACHE=()
+
 # cau_msg_in <locale> <msgid> [printf args...]
 cau_msg_in() {
-	local locale="$1" msgid="$2" translated
+	local locale="$1" msgid="$2" translated cachekey
 	shift 2
 
-	translated="$(LC_ALL="$locale" LANGUAGE="${locale%%.*}" gettext -- "$msgid" 2>/dev/null)"
-	[[ -n $translated ]] || translated="$msgid"
+	cachekey="${locale}"$'\x1f'"${msgid}"
+	if [[ -n ${CAU_MSG_CACHE[$cachekey]+set} ]]; then
+		translated="${CAU_MSG_CACHE[$cachekey]}"
+	else
+		translated="$(LC_ALL="$locale" LANGUAGE="${locale%%.*}" gettext -- "$msgid" 2>/dev/null)"
+		[[ -n $translated ]] || translated="$msgid"
+		CAU_MSG_CACHE[$cachekey]="$translated"
+	fi
+
+	# With no arguments the message is plain text, not a format string. Feeding
+	# it to printf anyway turns any literal percent sign in it - "Battery (%)",
+	# "100 % done" - into an invalid conversion, and that is a trap every
+	# translator would eventually walk into.
+	if (( $# == 0 )); then
+		printf '%s' "$translated"
+		return
+	fi
 
 	# shellcheck disable=SC2059  # the format string is the translated message
 	printf -- "$translated" "$@"

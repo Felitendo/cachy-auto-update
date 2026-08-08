@@ -6,14 +6,33 @@
 # root-run daemon, and sourcing it would turn a stray line into arbitrary code
 # execution. The format is one "Key=Value" per line, '#' starts a comment.
 
+# The file is cached and parsed in-process rather than shelled out to sed on
+# every lookup. The settings screen reads every key on every redraw, and a fork
+# per key made the redraw slow enough to swallow keystrokes.
+CAU_CONFIG_CACHE=''
+CAU_CONFIG_CACHED=0
+
+_cau_config_slurp() {
+	(( CAU_CONFIG_CACHED )) && return 0
+	CAU_CONFIG_CACHE=''
+	[[ -r $CAU_CONFIG ]] && CAU_CONFIG_CACHE="$(< "$CAU_CONFIG")"
+	CAU_CONFIG_CACHED=1
+	return 0
+}
+
 # cau_config_get <Key> [default]
 cau_config_get() {
-	local key="$1" default="${2:-}" val
+	local key="$1" default="${2:-}" val='' line
 
 	[[ -r $CAU_CONFIG ]] || { printf '%s\n' "$default"; return; }
+	_cau_config_slurp
 
-	val="$(sed -nE "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)$/\\1/p" \
-		"$CAU_CONFIG" 2>/dev/null | tail -n1)"
+	# last assignment wins, matching the previous sed|tail behaviour
+	while IFS= read -r line; do
+		[[ $line == *"$key"* ]] || continue
+		[[ $line =~ ^[[:space:]]*"$key"[[:space:]]*=(.*)$ ]] || continue
+		val="${BASH_REMATCH[1]}"
+	done <<< "$CAU_CONFIG_CACHE"
 
 	# strip a trailing comment and surrounding whitespace/quotes
 	val="${val%%#*}"
@@ -78,6 +97,7 @@ cau_config_set() {
 	fi
 
 	mv -f "$tmp" "$CAU_CONFIG"
+	CAU_CONFIG_CACHED=0
 }
 
 # ---------------------------------------------------------------------------

@@ -30,8 +30,13 @@ That opens a menu with the two switches there are:
   [3] Update now
   [4] Show log
   [5] Show current conditions
+  [6] Settings
   [q] Quit
 ```
+
+Everything is configurable from **[6] Settings** — a cursor list covering all
+eighteen options, so nothing needs a text editor. Arrow keys select, Space or
+Right changes a value, `q` goes back; changes are written immediately.
 
 The interface is fully translated; on a German system everything above appears
 in German.
