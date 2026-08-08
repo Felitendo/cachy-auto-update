@@ -63,7 +63,10 @@ cau_flatpak_update() {
 		fi
 	done < <(cau_human_users)
 
-	if [[ $CFG_CLEAN_CACHE == yes ]]; then
+	# Unused runtimes are the Flatpak equivalent of orphaned packages - this is
+	# removal of installed software, not cache trimming, so it belongs behind
+	# RemoveOrphans rather than CleanCache.
+	if [[ $CFG_REMOVE_ORPHANS == yes ]]; then
 		cau_run_logged flatpak uninstall --system --unused --noninteractive --assumeyes || true
 	fi
 

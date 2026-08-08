@@ -254,7 +254,14 @@ cau_pacman_cleanup() {
 	fi
 
 	if [[ $CFG_CLEAN_CACHE == yes ]] && cau_have paccache; then
-		cau_info "Trimming the package cache"
+		# paccache's dry run reports what a real run would reclaim; logging it
+		# first is the only way to tell afterwards whether trimming is doing
+		# anything, since the real run says little.
+		local reclaim
+		reclaim="$( { paccache -d --nocolor -k"$CFG_KEEP_OLD"; paccache -du --nocolor -k0; } 2>&1 \
+			| grep -oE 'disk space saved: [^)]*' | paste -sd', ' -)"
+
+		cau_info "Trimming the package cache (keeping $CFG_KEEP_OLD old version(s))${reclaim:+ - $reclaim}"
 		cau_run_logged paccache -r --nocolor -k"$CFG_KEEP_OLD"  || cau_warn "paccache -r failed"
 		cau_run_logged paccache -ru --nocolor -k0               || cau_warn "paccache -ru failed"
 	fi

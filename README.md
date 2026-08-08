@@ -55,8 +55,15 @@ business rebuilding somebody's system before being asked.
 | Flatpak | system and per-user installations |
 | AppImages | via [Gear Lever](https://github.com/mijorus/gearlever), if installed |
 
-`-git`/`-devel` AUR packages, cache trimming and orphan removal exist as
-options but are off by default.
+It also trims the pacman package cache after each run (`paccache`, keeping the
+3 most recent versions), because otherwise `/var/cache/pacman/pkg` grows
+forever — tens of gigabytes on a machine with a few large packages. Set
+`KeepOldPackages=1` if disk space matters more than the ability to downgrade.
+
+`-git`/`-devel` AUR packages and orphan removal exist as options but are off by
+default. Orphan removal deletes installed software, and "orphaned" only means
+nothing else depends on it — which is also true of something installed
+deliberately.
 
 ## When it holds back
 
