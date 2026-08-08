@@ -5,7 +5,10 @@
 # targets degrade to a no-op when msgfmt/scdoc are missing, so the tree stays
 # usable for development without the build dependencies installed.
 
-VERSION      := 1.0.0
+# Overridable so a packager can pass the version it is actually building
+# (`make VERSION=$pkgver`). The literal below is the fallback for builds
+# straight from a checkout, and is what a release tag has to carry.
+VERSION      ?= 1.0.2
 
 PREFIX       ?= /usr
 DESTDIR      ?=
