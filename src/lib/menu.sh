@@ -87,6 +87,13 @@ cau_ui_status() {
 			"$(cau_msg "A restart is recommended to finish a kernel update.")" \
 			"$CAU_C_RESET"
 	fi
+
+	local held
+	held="$(cau_state_read held_back '')"
+	if [[ -n $held ]]; then
+		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \
+			"$(cau_msg "Held back: %s" "$held")" "$CAU_C_RESET"
+	fi
 }
 
 # cau_ui_status_conditions

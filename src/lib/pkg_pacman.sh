@@ -10,6 +10,9 @@
 CAU_PACMAN_COUNT=0
 CAU_PACMAN_PENDING=''
 
+# Packages that had to be skipped so the rest of the upgrade could go through.
+CAU_PACMAN_HELD=''
+
 # Base flags for every unattended pacman invocation.
 cau_pacman_flags() {
 	printf '%s\n' --noconfirm --color never --noprogressbar --disable-download-timeout
@@ -55,6 +58,8 @@ _cau_pacman_classify() {
 
 	if grep -qiE 'are in conflict|unresolvable package conflicts' "$log"; then
 		printf 'conflict\n'
+	elif grep -qiE 'could not satisfy dependencies|breaks dependency|unable to satisfy dependency' "$log"; then
+		printf 'dependency\n'
 	elif grep -qiE 'signature from .* is (unknown trust|marginal trust|invalid)|invalid or corrupted package \(PGP signature\)|key ".*" is unknown|keyring is not writable' "$log"; then
 		printf 'keyring\n'
 	elif grep -qiE 'exists in filesystem' "$log"; then
@@ -62,6 +67,25 @@ _cau_pacman_classify() {
 	else
 		printf 'other\n'
 	fi
+}
+
+# _cau_pacman_blockers <logfile>
+# The packages standing in the way of an otherwise fine upgrade. pacman names
+# them in its dependency errors:
+#
+#   :: removing libperconaserverclient breaks dependency 'libperconaserverclient'
+#      required by heidisql-qt6-bin
+#   :: unable to satisfy dependency 'foo' required by bar
+#
+# In the first form the package being removed is the one to keep; in the second
+# it is the package that cannot be installed.
+_cau_pacman_blockers() {
+	local log="$1"
+
+	{
+		sed -nE "s/.*removing ([^ ]+) breaks dependency.*/\\1/p" "$log"
+		sed -nE "s/.*unable to satisfy dependency '[^']*' required by ([^ ]+).*/\\1/p" "$log"
+	} | grep -E '^[A-Za-z0-9@._+-]+$' | sort -u
 }
 
 # cau_pacman_update
@@ -90,68 +114,92 @@ cau_pacman_update() {
 	mapfile -t flags < <(cau_pacman_flags)
 	log="$(mktemp)" || return 1
 
-	if pacman -Syu "${flags[@]}" > "$log" 2>&1; then
-		cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-		rm -f "$log"
-		return 0
-	fi
+	# Recovery loop rather than a single retry: fixing one problem regularly
+	# uncovers the next (a conflict resolved into a dependency error, say).
+	# Each remedy is applied at most once, so this always terminates.
+	local -a extra=() blockers=() tried=()
+	local attempt=0 b
 
-	cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-	kind="$(_cau_pacman_classify "$log")"
-	cau_warn "pacman -Syu failed ($kind)"
-
-	case "$kind" in
-		keyring)
-			# A stale keyring is the one failure that is always safe to fix
-			# automatically, and it blocks everything else until it is.
-			cau_info "Refreshing keyrings and retrying"
-			local -a keyrings=()
-			pacman -Qq archlinux-keyring &> /dev/null && keyrings+=(archlinux-keyring)
-			pacman -Qq cachyos-keyring   &> /dev/null && keyrings+=(cachyos-keyring)
-			if (( ${#keyrings[@]} )); then
-				cau_run_logged pacman -Sy --noconfirm --color never "${keyrings[@]}" || true
-			fi
-			if pacman -Syu "${flags[@]}" > "$log" 2>&1; then
-				cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-				rm -f "$log"
-				return 0
-			fi
+	while true; do
+		if pacman -Syu "${flags[@]}" "${extra[@]}" > "$log" 2>&1; then
 			cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-			;;
-
-		conflict)
-			# A package that has to replace another one. --noconfirm already
-			# answers "Replace X with Y?" affirmatively; what it declines is
-			# ":: X and Y are in conflict. Remove Y? [y/N]". --ask is pacman's
-			# question bitmask: 4 = CONFLICT_PKG, 16 = REMOVE_PKGS.
-			if [[ $CFG_RESOLVE_CONFLICTS != yes ]]; then
-				cau_error "Package conflict requires a decision (AutoResolveConflicts is off)"
-				rm -f "$log"
-				return 1
-			fi
-			cau_info "Resolving package conflicts automatically and retrying"
-			if pacman -Syu "${flags[@]}" --ask=20 > "$log" 2>&1; then
-				cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-				grep -E '^(removing|replacing) ' "$log" 2>/dev/null \
-					| while read -r line; do cau_info "  $line"; done
-				rm -f "$log"
-				return 0
-			fi
-			cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
-			;;
-
-		filesystem)
-			# Untracked files in the way. Forcing --overwrite here could
-			# silently clobber something the user put there deliberately, so
-			# this one stays a human decision.
-			cau_error "Files on disk conflict with the update; manual review needed"
+			grep -E '^(removing|replacing) ' "$log" 2>/dev/null \
+				| while read -r line; do cau_info "  $line"; done
 			rm -f "$log"
-			return 1
-			;;
-	esac
+			return 0
+		fi
+
+		cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
+		kind="$(_cau_pacman_classify "$log")"
+		cau_warn "pacman -Syu failed ($kind)"
+
+		if (( ++attempt > 3 )) || [[ " ${tried[*]} " == *" $kind "* ]]; then
+			break
+		fi
+		tried+=("$kind")
+
+		case "$kind" in
+			keyring)
+				# A stale keyring is the one failure that is always safe to fix
+				# automatically, and it blocks everything else until it is.
+				cau_info "Refreshing keyrings and retrying"
+				local -a keyrings=()
+				pacman -Qq archlinux-keyring &> /dev/null && keyrings+=(archlinux-keyring)
+				pacman -Qq cachyos-keyring   &> /dev/null && keyrings+=(cachyos-keyring)
+				if (( ${#keyrings[@]} )); then
+					cau_run_logged pacman -Sy --noconfirm --color never "${keyrings[@]}" || true
+				fi
+				;;
+
+			conflict)
+				# A package that has to replace another one. --noconfirm already
+				# answers "Replace X with Y?" affirmatively; what it declines is
+				# ":: X and Y are in conflict. Remove Y? [y/N]". --ask is pacman's
+				# question bitmask: 4 = CONFLICT_PKG, 16 = REMOVE_PKGS.
+				if [[ $CFG_RESOLVE_CONFLICTS != yes ]]; then
+					cau_error "Package conflict requires a decision (AutoResolveConflicts is off)"
+					break
+				fi
+				cau_info "Resolving package conflicts automatically and retrying"
+				extra+=(--ask=20)
+				;;
+
+			dependency)
+				# Something installed still depends on a package the repos want
+				# to drop or replace - almost always an AUR package that has not
+				# caught up yet. Nothing here can fix that, and it is not worth
+				# failing over: letting one stuck package block every other
+				# update indefinitely is far worse on an unattended machine.
+				# Hold the blockers back and upgrade everything else.
+				mapfile -t blockers < <(_cau_pacman_blockers "$log")
+				if (( ${#blockers[@]} == 0 )); then
+					cau_error "Dependency problem with no package to hold back"
+					break
+				fi
+				for b in "${blockers[@]}"; do
+					extra+=(--ignore "$b")
+				done
+				CAU_PACMAN_HELD="${blockers[*]}"
+				cau_warn "Holding back ${blockers[*]} and retrying without them"
+				;;
+
+			filesystem)
+				# Untracked files in the way. Forcing --overwrite here could
+				# silently clobber something the user put there deliberately, so
+				# this one stays a human decision.
+				cau_error "Files on disk conflict with the update; manual review needed"
+				break
+				;;
+
+			*)
+				break
+				;;
+		esac
+	done
 
 	rm -f "$log"
 	CAU_PACMAN_COUNT=0
+	CAU_PACMAN_HELD=''
 	return 1
 }
 

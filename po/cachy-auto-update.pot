@@ -243,3 +243,14 @@ msgstr ""
 
 msgid "pacman's lock file looks left over from an interrupted update. Updates are paused until it is cleared."
 msgstr ""
+
+msgid "Some packages were held back"
+msgstr ""
+
+#, c-format
+msgid "%s could not be updated and was skipped. Everything else is up to date."
+msgstr ""
+
+#, c-format
+msgid "Held back: %s"
+msgstr ""

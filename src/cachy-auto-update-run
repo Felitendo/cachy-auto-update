@@ -202,6 +202,22 @@ else
 	fi
 fi
 
+# Packages skipped so the rest of the upgrade could proceed. The notification
+# only fires when the set changes: a blocker waiting on an upstream fix would
+# otherwise produce the same message every single day.
+prev_held="$(cau_state_read held_back '')"
+if [[ -n $CAU_PACMAN_HELD ]]; then
+	cau_state_write held_back "$CAU_PACMAN_HELD"
+	cau_warn "Held back: $CAU_PACMAN_HELD"
+	if [[ $CAU_PACMAN_HELD != "$prev_held" && $CFG_NOTIFY_ERROR == yes ]]; then
+		cau_notify normal "Some packages were held back" \
+			"%s could not be updated and was skipped. Everything else is up to date." \
+			"$CAU_PACMAN_HELD"
+	fi
+else
+	cau_state_clear held_back
+fi
+
 if cau_pacman_reboot_needed; then
 	cau_state_write reboot_needed 1
 	cau_info "A kernel update needs a restart"

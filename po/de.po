@@ -244,3 +244,14 @@ msgstr "Paketdatenbank gesperrt"
 
 msgid "pacman's lock file looks left over from an interrupted update. Updates are paused until it is cleared."
 msgstr "Die Sperrdatei von pacman scheint von einem abgebrochenen Update übrig zu sein. Bis sie entfernt ist, pausieren die Updates."
+
+msgid "Some packages were held back"
+msgstr "Einige Pakete wurden zurückgehalten"
+
+#, c-format
+msgid "%s could not be updated and was skipped. Everything else is up to date."
+msgstr "%s konnte nicht aktualisiert werden und wurde übersprungen. Alles andere ist aktuell."
+
+#, c-format
+msgid "Held back: %s"
+msgstr "Zurückgehalten: %s"
