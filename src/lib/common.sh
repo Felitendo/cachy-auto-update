@@ -146,11 +146,18 @@ cau_run_logged() {
 # Terminal helpers for the CLI
 # ---------------------------------------------------------------------------
 
+# Set by cau_bad and cau_note. The menu redraws immediately after an action,
+# which would wipe the screen; this marks that something was printed that the
+# user still has to read, so only those cases wait for a keypress. A plain
+# success needs no acknowledgement - the status block at the top of the menu
+# already shows the new state.
+CAU_UI_NEEDS_ACK=''
+
 cau_say()  { printf '%s\n' "$*"; }
 cau_head() { printf '\n%s%s%s\n\n' "$CAU_C_BOLD$CAU_C_BLUE" "$*" "$CAU_C_RESET"; }
 cau_ok()   { printf '%s✔%s %s\n' "$CAU_C_GREEN" "$CAU_C_RESET" "$*"; }
-cau_bad()  { printf '%s✘%s %s\n' "$CAU_C_RED" "$CAU_C_RESET" "$*" >&2; }
-cau_note() { printf '%s•%s %s\n' "$CAU_C_DIM" "$CAU_C_RESET" "$*"; }
+cau_bad()  { CAU_UI_NEEDS_ACK=1; printf '%s✘%s %s\n' "$CAU_C_RED" "$CAU_C_RESET" "$*" >&2; }
+cau_note() { CAU_UI_NEEDS_ACK=1; printf '%s•%s %s\n' "$CAU_C_DIM" "$CAU_C_RESET" "$*"; }
 
 # ---------------------------------------------------------------------------
 # State files

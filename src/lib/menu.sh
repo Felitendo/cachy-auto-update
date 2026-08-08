@@ -152,17 +152,22 @@ cau_ui_menu() {
 		printf '%s\n' "$choice"
 
 		case "$choice" in
+			# The two switches flip and return straight to the menu, where the
+			# status block shows the result. Only a warning or an error holds
+			# the screen (see CAU_UI_NEEDS_ACK).
 			1)
+				CAU_UI_NEEDS_ACK=''
 				if [[ $CFG_ENABLED == yes ]]; then cau_do_disable; else cau_do_enable; fi
-				cau_pause
+				if [[ -n $CAU_UI_NEEDS_ACK ]]; then cau_pause; fi
 				;;
 			2)
+				CAU_UI_NEEDS_ACK=''
 				if [[ $CFG_NOTIFICATIONS == yes ]]; then
 					cau_do_notifications off
 				else
 					cau_do_notifications on
 				fi
-				cau_pause
+				if [[ -n $CAU_UI_NEEDS_ACK ]]; then cau_pause; fi
 				;;
 			3) cau_do_run --force; cau_pause ;;
 			4) cau_do_log; cau_pause ;;
