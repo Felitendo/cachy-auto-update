@@ -20,11 +20,17 @@ _cau_config_slurp() {
 	return 0
 }
 
-# cau_config_get <Key> [default]
-cau_config_get() {
+# _cau_config_lookup <Key> [default]
+# Result in CAU_CONFIG_VALUE. Assigning rather than printing matters on the
+# settings screen, which reads every key on every frame: a command substitution
+# there is a fork, and forks were the entire cost of a redraw.
+CAU_CONFIG_VALUE=''
+
+_cau_config_lookup() {
 	local key="$1" default="${2:-}" val='' line
 
-	[[ -r $CAU_CONFIG ]] || { printf '%s\n' "$default"; return; }
+	CAU_CONFIG_VALUE="$default"
+	[[ -r $CAU_CONFIG ]] || return 0
 	_cau_config_slurp
 
 	# last assignment wins, matching the previous sed|tail behaviour
@@ -41,11 +47,14 @@ cau_config_get() {
 	val="${val%\"}"
 	val="${val#\"}"
 
-	if [[ -n $val ]]; then
-		printf '%s\n' "$val"
-	else
-		printf '%s\n' "$default"
-	fi
+	[[ -n $val ]] && CAU_CONFIG_VALUE="$val"
+	return 0
+}
+
+# cau_config_get <Key> [default]
+cau_config_get() {
+	_cau_config_lookup "$@"
+	printf '%s\n' "$CAU_CONFIG_VALUE"
 }
 
 # cau_config_bool <Key> <default: yes|no>

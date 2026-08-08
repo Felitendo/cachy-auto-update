@@ -75,6 +75,27 @@ cau_msg() {
 	cau_msg_in "$(cau_ui_locale)" "$@"
 }
 
+# cau_msg_into <locale> <msgid>
+# Plain lookup with the result in CAU_MSG_RESULT and no printf formatting.
+# For callers that redraw many labels per keypress, where wrapping cau_msg in a
+# command substitution would cost a fork per label.
+CAU_MSG_RESULT=''
+
+cau_msg_into() {
+	local locale="$1" msgid="$2" cachekey
+	cachekey="${locale}"$'\x1f'"${msgid}"
+
+	if [[ -n ${CAU_MSG_CACHE[$cachekey]+set} ]]; then
+		CAU_MSG_RESULT="${CAU_MSG_CACHE[$cachekey]}"
+		return 0
+	fi
+
+	CAU_MSG_RESULT="$(LC_ALL="$locale" LANGUAGE="${locale%%.*}" gettext -- "$msgid" 2>/dev/null)"
+	[[ -n $CAU_MSG_RESULT ]] || CAU_MSG_RESULT="$msgid"
+	CAU_MSG_CACHE[$cachekey]="$CAU_MSG_RESULT"
+	return 0
+}
+
 # Translations are memoized. Every gettext lookup is a fork, and the settings
 # screen redraws forty-odd labels per keypress; without this the redraw takes
 # long enough that a keystroke arriving during it is lost when the terminal

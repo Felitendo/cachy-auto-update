@@ -156,25 +156,33 @@ _cau_is_true() {
 }
 
 # _cau_setting_display <type> <value>
+# Result in CAU_SETTING_SHOWN. The three constant strings are resolved once by
+# the caller into CAU_LBL_*; looking them up here would put a translation call
+# on the per-line path.
+CAU_SETTING_SHOWN=''
+CAU_LBL_ON=''
+CAU_LBL_OFF=''
+CAU_LBL_NONE=''
+
 _cau_setting_display() {
 	local type="$1" value="$2"
 
 	case "$type" in
 		bool)
 			if _cau_is_true "$value"; then
-				printf '%s%s%s' "$CAU_C_GREEN" "$(cau_msg "ON")" "$CAU_C_RESET"
+				CAU_SETTING_SHOWN="${CAU_C_GREEN}${CAU_LBL_ON}${CAU_C_RESET}"
 			else
-				printf '%s%s%s' "$CAU_C_DIM" "$(cau_msg "OFF")" "$CAU_C_RESET"
+				CAU_SETTING_SHOWN="${CAU_C_DIM}${CAU_LBL_OFF}${CAU_C_RESET}"
 			fi
 			;;
 		text)
 			if [[ -n $value ]]; then
-				printf '%s' "$value"
+				CAU_SETTING_SHOWN="$value"
 			else
-				printf '%s%s%s' "$CAU_C_DIM" "$(cau_msg "(none)")" "$CAU_C_RESET"
+				CAU_SETTING_SHOWN="${CAU_C_DIM}${CAU_LBL_NONE}${CAU_C_RESET}"
 			fi
 			;;
-		*) printf '%s' "$value" ;;
+		*) CAU_SETTING_SHOWN="$value" ;;
 	esac
 }
 
@@ -205,58 +213,88 @@ _cau_setting_cycle() {
 # cau_ui_settings
 # A cursor list rather than a numbered menu: there are eighteen settings, and
 # numbering them would run out of digits and force paging.
+#
+# The frame is assembled in memory and written once. Everything constant - the
+# specs, the translated labels, the clear sequence - is resolved before the
+# loop, and the values are re-read only after something actually changes.
+# Drawing the naive way cost a command substitution per label per frame, which
+# measured 435 ms per keypress: arrow keys felt like the console was reloading,
+# because in effect it was.
 cau_ui_settings() {
-	local cursor=0 key spec name type default label value line pad
 	local count=${#CAU_SETTINGS[@]}
+	local -a names=() types=() defaults=() labels=()
+	local -a values=()
+	local spec name type default label locale i key frame row pad dirty=1 cursor=0
+
+	locale="$(cau_ui_locale)"
+	cau_msg_into "$locale" "ON";     CAU_LBL_ON="$CAU_MSG_RESULT"
+	cau_msg_into "$locale" "OFF";    CAU_LBL_OFF="$CAU_MSG_RESULT"
+	cau_msg_into "$locale" "(none)"; CAU_LBL_NONE="$CAU_MSG_RESULT"
+
+	for spec in "${CAU_SETTINGS[@]}"; do
+		IFS='|' read -r name type default label <<< "$spec"
+		names+=("$name"); types+=("$type"); defaults+=("$default")
+		cau_msg_into "$locale" "$label"
+		labels+=("$CAU_MSG_RESULT")
+	done
+
+	local title hint
+	cau_msg_into "$locale" "Settings"; title="$CAU_MSG_RESULT"
+	cau_msg_into "$locale" "Up/Down select - Space or Right changes - q goes back"
+	hint="$CAU_MSG_RESULT"
+
+	# the terminfo clear string, fetched once instead of forking per frame
+	local clearseq
+	clearseq="$(clear 2>/dev/null)" || clearseq=$'\033[H\033[2J'
 
 	while true; do
-		clear 2>/dev/null || true
-		cau_head "  $(cau_msg "Settings")"
+		if (( dirty )); then
+			for i in "${!names[@]}"; do
+				_cau_config_lookup "${names[i]}" "${defaults[i]}"
+				values[i]="$CAU_CONFIG_VALUE"
+			done
+			dirty=0
+		fi
 
-		local i=0
-		for spec in "${CAU_SETTINGS[@]}"; do
-			IFS='|' read -r name type default label <<< "$spec"
-			value="$(cau_config_get "$name" "$default")"
+		frame="$clearseq"$'\n'"${CAU_C_BOLD}${CAU_C_BLUE}  ${title}${CAU_C_RESET}"$'\n\n'
 
-			if (( i == cursor )); then
-				line="${CAU_C_BLUE}▸${CAU_C_RESET} "
-			else
-				line="  "
-			fi
-
-			local text
-			text="$(cau_msg "$label")"
-			pad=$(( 42 - ${#text} ))
+		local marker selected="${CAU_C_BLUE}▸${CAU_C_RESET} "
+		for i in "${!names[@]}"; do
+			_cau_setting_display "${types[i]}" "${values[i]}"
+			pad=$(( 42 - ${#labels[i]} ))
 			(( pad < 0 )) && pad=0
-
-			printf '  %s%s%*s %s\n' "$line" "$text" "$pad" '' \
-				"$(_cau_setting_display "$type" "$value")"
-			i=$(( i + 1 ))
+			if (( i == cursor )); then marker="$selected"; else marker='  '; fi
+			printf -v row '  %s%s%*s %s' \
+				"$marker" "${labels[i]}" "$pad" '' "$CAU_SETTING_SHOWN"
+			frame+="$row"$'\n'
 		done
 
-		printf '\n  %s%s%s\n' "$CAU_C_DIM" \
-			"$(cau_msg "Up/Down select - Space or Right changes - q goes back")" "$CAU_C_RESET"
+		frame+=$'\n'"  ${CAU_C_DIM}${hint}${CAU_C_RESET}"$'\n'
+		printf '%s' "$frame"
 
 		key="$(cau_read_key)" || return 0
 
-		IFS='|' read -r name type default label <<< "${CAU_SETTINGS[cursor]}"
-		value="$(cau_config_get "$name" "$default")"
+		type="${types[cursor]}"
+		name="${names[cursor]}"
 
 		case "$key" in
 			up|k)    cursor=$(( (cursor - 1 + count) % count )) ;;
 			down|j)  cursor=$(( (cursor + 1) % count )) ;;
 			space|enter|right|l)
 				if [[ $type == text ]]; then
-					cau_ui_edit_text "$name" "$value"
+					cau_ui_edit_text "$name" "${values[cursor]}"
 				else
-					cau_config_set "$name" "$(_cau_setting_cycle "$type" "$value" 1)" \
+					cau_config_set "$name" "$(_cau_setting_cycle "$type" "${values[cursor]}" 1)" \
 						|| { cau_bad "$(cau_msg "Could not write the configuration file.")"; cau_pause; }
 				fi
+				dirty=1
 				;;
 			left|h)
-				[[ $type == text ]] || cau_config_set "$name" \
-					"$(_cau_setting_cycle "$type" "$value" -1)" \
-					|| { cau_bad "$(cau_msg "Could not write the configuration file.")"; cau_pause; }
+				if [[ $type != text ]]; then
+					cau_config_set "$name" "$(_cau_setting_cycle "$type" "${values[cursor]}" -1)" \
+						|| { cau_bad "$(cau_msg "Could not write the configuration file.")"; cau_pause; }
+					dirty=1
+				fi
 				;;
 			q|Q|escape) return 0 ;;
 			*) ;;
