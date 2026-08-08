@@ -81,6 +81,10 @@ cau_ui_status() {
 		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \
 			"$(cau_msg "The last run reported a problem - see 'cachy-auto-update log'.")" \
 			"$CAU_C_RESET"
+	elif [[ $result == interrupted ]]; then
+		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \
+			"$(cau_msg "The last run was stopped before it finished.")" \
+			"$CAU_C_RESET"
 	fi
 	if [[ $reboot == 1 ]]; then
 		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \

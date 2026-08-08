@@ -255,3 +255,6 @@ msgstr "%s konnte nicht aktualisiert werden und wurde übersprungen. Alles ander
 #, c-format
 msgid "Held back: %s"
 msgstr "Zurückgehalten: %s"
+
+msgid "The last run was stopped before it finished."
+msgstr "Der letzte Lauf wurde abgebrochen, bevor er fertig war."

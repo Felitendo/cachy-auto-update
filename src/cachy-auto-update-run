@@ -63,6 +63,21 @@ fi
 cau_config_load
 cau_log_open
 
+# Record an interruption rather than leaving the previous run's verdict behind.
+# Without this, killing an interactive run leaves last_result at whatever it was
+# before - so the menu can keep reporting a problem from hours ago while the
+# machine is in fact fully up to date, which is worse than saying nothing.
+# pacman makes the commit phase itself uninterruptible, so the packages either
+# all landed or none did; only our own bookkeeping is at risk here.
+_cau_interrupted() {
+	cau_error "Update run interrupted ($1)"
+	cau_state_write last_result interrupted
+	exit 130
+}
+trap '_cau_interrupted SIGINT'  INT
+trap '_cau_interrupted SIGTERM' TERM
+trap '_cau_interrupted SIGHUP'  HUP
+
 # ---------------------------------------------------------------------------
 # Should this run happen at all?
 # ---------------------------------------------------------------------------

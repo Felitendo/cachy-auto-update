@@ -91,7 +91,14 @@ cau_msg_in() {
 # Output and logging
 # ---------------------------------------------------------------------------
 
-if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+# Is a person watching? Decided once, here, while stdout is still whatever the
+# process was started with. Testing `-t 1` at the point of use is unreliable:
+# any function called through $(...) or <(...) sees a pipe on stdout and would
+# conclude nobody is there.
+CAU_INTERACTIVE=''
+[[ -t 1 ]] && CAU_INTERACTIVE=1
+
+if [[ -n $CAU_INTERACTIVE && -z ${NO_COLOR:-} ]]; then
 	CAU_C_RESET=$'\033[0m'
 	CAU_C_BOLD=$'\033[1m'
 	CAU_C_DIM=$'\033[2m'
@@ -132,10 +139,19 @@ cau_log_open() {
 	CAU_LOG_OPEN=1
 }
 
-# Runs a command, streaming its combined output into the run log. Returns the
+# Runs a command, capturing its combined output in the run log. Returns the
 # command's exit status.
+#
+# When a person is watching - `cachy-auto-update run` from a terminal - the
+# output is shown as well. Building an AUR package or pulling a few hundred
+# megabytes of Flatpak can take minutes, and silence for that long is
+# indistinguishable from a hang.
 cau_run_logged() {
 	if [[ -n ${CAU_LOG_OPEN:-} ]]; then
+		if [[ -n $CAU_INTERACTIVE ]]; then
+			"$@" 2>&1 | tee -a "$CAU_RUNLOG"
+			return "${PIPESTATUS[0]}"
+		fi
 		"$@" >> "$CAU_RUNLOG" 2>&1
 	else
 		"$@" >&2

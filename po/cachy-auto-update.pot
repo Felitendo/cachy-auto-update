@@ -254,3 +254,6 @@ msgstr ""
 #, c-format
 msgid "Held back: %s"
 msgstr ""
+
+msgid "The last run was stopped before it finished."
+msgstr ""

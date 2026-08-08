@@ -15,11 +15,33 @@ CAU_PACMAN_HELD=''
 
 # Base flags for every unattended pacman invocation.
 cau_pacman_flags() {
-	printf '%s\n' --noconfirm --color never --noprogressbar --disable-download-timeout
+	printf '%s\n' --noconfirm --color never --disable-download-timeout
+
+	# A progress bar is worth having when somebody is watching a `run` from a
+	# terminal; in the timer's log it is only carriage-return noise.
+	[[ -n $CAU_INTERACTIVE ]] || printf '%s\n' --noprogressbar
+
 	local pkg
 	for pkg in $CFG_IGNORE_PKG; do
 		printf '%s\n' --ignore "$pkg"
 	done
+}
+
+# _cau_pacman_exec <logfile> <pacman args...>
+# Captures pacman's output for classification, and streams it as well when a
+# person is watching. Upgrading a few hundred packages takes minutes; without
+# this an interactive run shows one line and then nothing at all, which is
+# indistinguishable from a hang and invites someone to kill it mid-transaction.
+_cau_pacman_exec() {
+	local log="$1"
+	shift
+
+	if [[ -n $CAU_INTERACTIVE ]]; then
+		pacman "$@" 2>&1 | tee "$log"
+		return "${PIPESTATUS[0]}"
+	fi
+
+	pacman "$@" > "$log" 2>&1
 }
 
 # cau_pacman_pending
@@ -121,7 +143,7 @@ cau_pacman_update() {
 	local attempt=0 b
 
 	while true; do
-		if pacman -Syu "${flags[@]}" "${extra[@]}" > "$log" 2>&1; then
+		if _cau_pacman_exec "$log" -Syu "${flags[@]}" "${extra[@]}"; then
 			cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
 			grep -E '^(removing|replacing) ' "$log" 2>/dev/null \
 				| while read -r line; do cau_info "  $line"; done
