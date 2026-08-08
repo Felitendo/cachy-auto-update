@@ -257,3 +257,9 @@ msgstr ""
 
 msgid "The last run was stopped before it finished."
 msgstr ""
+
+msgid "Finishing an interrupted update"
+msgstr ""
+
+msgid "The last update was cut short, most likely because the machine was switched off. It is being finished now."
+msgstr ""

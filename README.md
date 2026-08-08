@@ -123,6 +123,36 @@ A leftover `db.lck` from a crashed transaction is never deleted automatically �
 guessing wrong there corrupts a live transaction. After it has been seen
 unheld on several consecutive runs, you get a notification instead.
 
+## What if the machine is switched off mid-update
+
+Three layers, in order of how much they can actually promise:
+
+**Suspend and a normal shutdown are blocked.** The run holds a
+`systemd-inhibit --what=sleep:shutdown --mode=block` lock, so closing the lid,
+picking "Shut down" from the menu or a short press of the power button will not
+interrupt a transaction — the desktop says something is still busy instead.
+
+**A hard power-off cannot be prevented by anything.** Holding the power button
+or pulling the plug cuts power in firmware. What limits the damage is that
+pacman's commit phase is short (about a minute even for a 200-package upgrade)
+and that most of a run is downloading, where an interruption costs nothing but
+a partial file.
+
+**The next run repairs it.** A `db.lck` left behind is detected and removed —
+but only when it is *provably* dead, meaning it is older than the current boot,
+so no process that could hold it still exists. The interrupted upgrade is then
+simply run again; pacman reinstalls anything that was caught half-written. A
+lock that is merely unheld within the same boot is never removed, only
+reported, because there the guess could be wrong.
+
+This last part matters more than it sounds: without it, a single power cut
+during an update would leave a lock file that makes every future run defer,
+and the machine would stop updating silently and permanently.
+
+On a Btrfs system with `snapper` and `snap-pac` — the CachyOS default — every
+pacman transaction is bracketed by a pre and post snapshot, so a genuinely
+broken upgrade can still be rolled back with `snapper rollback`.
+
 ## Configuration
 
 `/etc/cachy-auto-update/cachy-auto-update.conf`, one `Key=Value` per line, every

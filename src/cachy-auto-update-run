@@ -117,6 +117,15 @@ if (( ! FORCE )); then
 	fi
 fi
 
+# A lock left behind by a power cut during a previous update. It is cleared
+# before the busy check, because otherwise every future run would defer on it
+# forever and the machine would quietly stop updating.
+if cau_recover_stale_lock; then
+	cau_notify normal \
+		"Finishing an interrupted update" \
+		"The last update was cut short, most likely because the machine was switched off. It is being finished now."
+fi
+
 # This one is checked even with --force: proceeding anyway would just hand the
 # user a lock error instead of doing anything useful.
 CAU_SKIP_REASON=''

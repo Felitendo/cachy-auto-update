@@ -100,6 +100,26 @@ running are skipped.
 The machine is never restarted automatically. When a kernel update makes a
 restart necessary, a notification says so.
 
+# INTERRUPTED UPDATES
+
+While a transaction is running, *cachy-auto-update* holds a
+*systemd-inhibit*(1) lock on _sleep_ and _shutdown_ in blocking mode, so a
+suspend, a lid close or a normal shutdown request cannot cut it short.
+
+A hard power-off - holding the power button, or losing mains power - is not
+preventable. On the next run a leftover _/var/lib/pacman/db.lck_ is removed if
+it is older than the current boot, since no process able to hold it can still
+exist; the upgrade is then repeated and pacman reinstalls whatever was caught
+half-written. A lock file that is unheld but was created during the current
+boot is reported rather than removed, because there is no way to prove it is
+abandoned.
+
+Without that recovery a single power cut would leave a lock that makes every
+subsequent run defer, silently stopping updates for good.
+
+On Btrfs with *snapper*(8) and *snap-pac*, each pacman transaction is bracketed
+by a pre and post snapshot, so a broken upgrade remains rollbackable.
+
 # FILES
 
 _/etc/cachy-auto-update/cachy-auto-update.conf_

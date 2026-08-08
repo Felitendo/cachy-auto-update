@@ -60,11 +60,55 @@ cau_package_manager_busy() {
 	return 1
 }
 
+# cau_pacman_lock_is_stale
+# True only when the lock provably cannot belong to anything alive.
+#
+# The rigorous test is the boot time: no process that existed before the
+# current boot can still be running, so a db.lck older than boot is abandoned
+# by definition - which is exactly what a power cut during an update leaves
+# behind. A lock that is merely unheld *within* this boot is not provable in
+# the same way, so it is only reported (see cau_track_stale_lock) and never
+# removed; guessing wrong there would corrupt a live transaction.
+#
+# The fuser check is kept as a second condition purely to survive a backwards
+# clock jump making a live lock look pre-boot.
+cau_pacman_lock_is_stale() {
+	local boot lock
+
+	[[ -e $CAU_PACMAN_LOCK ]] || return 1
+
+	boot="$(awk '/^btime /{print $2}' /proc/stat 2>/dev/null)"
+	[[ $boot =~ ^[0-9]+$ ]] || return 1
+
+	lock="$(stat -c %Y "$CAU_PACMAN_LOCK" 2>/dev/null)" || return 1
+	[[ $lock =~ ^[0-9]+$ ]] || return 1
+
+	(( lock < boot )) || return 1
+	[[ -z "$(cau_pacman_lock_holder)" ]]
+}
+
+# cau_recover_stale_lock
+# Clears a provably abandoned lock so an interrupted update can be finished on
+# the next run. Without this, one power cut during an update stops every future
+# update permanently and silently - the worst possible outcome for a machine
+# nobody is watching.
+cau_recover_stale_lock() {
+	cau_pacman_lock_is_stale || return 1
+
+	cau_warn "Found a pacman lock older than this boot - an update was cut short"
+	rm -f "$CAU_PACMAN_LOCK" 2>/dev/null || {
+		cau_error "Could not remove the stale pacman lock"
+		return 1
+	}
+	cau_state_clear stale_lock_count
+	cau_info "Stale lock removed; the interrupted update will be finished now"
+	return 0
+}
+
 # cau_track_stale_lock
-# A db.lck with no process behind it is left over from a crashed transaction.
-# Removing it automatically would be reckless - if the guess is wrong it
-# corrupts a live transaction - so instead it is counted, and after enough
-# consecutive sightings the user is told to clean it up.
+# A db.lck with no process behind it but created during this boot: a crashed
+# pacman rather than a power cut. Not provable, so it is counted, and after
+# enough consecutive sightings the user is told to clean it up.
 CAU_STALE_LOCK_RUNS=3
 
 cau_track_stale_lock() {
