@@ -76,9 +76,16 @@ cau_pacman_update() {
 		return 0
 	fi
 
-	CAU_PACMAN_COUNT="$(grep -c . <<< "$CAU_PACMAN_PENDING")"
-	[[ $CAU_PACMAN_COUNT =~ ^[0-9]+$ ]] || CAU_PACMAN_COUNT=0
-	cau_info "Updating $CAU_PACMAN_COUNT repository package(s)"
+	if [[ -n $CAU_PACMAN_PENDING ]]; then
+		CAU_PACMAN_COUNT="$(grep -c . <<< "$CAU_PACMAN_PENDING")"
+		[[ $CAU_PACMAN_COUNT =~ ^[0-9]+$ ]] || CAU_PACMAN_COUNT=0
+		cau_info "Updating $CAU_PACMAN_COUNT repository package(s)"
+	else
+		# checkupdates is unavailable, so the list is unknown and pacman is
+		# asked to work it out itself.
+		CAU_PACMAN_COUNT=0
+		cau_info "Running a full system upgrade (pending list unavailable)"
+	fi
 
 	mapfile -t flags < <(cau_pacman_flags)
 	log="$(mktemp)" || return 1

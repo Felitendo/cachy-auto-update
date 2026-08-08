@@ -40,6 +40,13 @@ if [[ $EUID -ne 0 ]]; then
 	exit 2
 fi
 
+# Force a neutral locale here rather than relying on the unit's Environment=,
+# so a run started by hand behaves exactly like one started by the timer.
+# pacman failures are classified by matching its output, and on a German system
+# that output is German. Text aimed at a person does not come through here - a
+# notification is rendered in the recipient's own locale by cau_msg_in.
+export LC_ALL=C LANGUAGE=
+
 # Re-exec under an inhibitor so a suspend or shutdown cannot land in the middle
 # of a pacman transaction and leave the database half-written. Done before
 # anything else so the whole pass is covered, including the lock.

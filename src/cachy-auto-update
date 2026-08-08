@@ -170,7 +170,9 @@ cau_do_status() {
 
 cau_do_run() {
 	cau_need_root
-	exec "$CAU_LIBEXECDIR/cachy-auto-update-run" "$@"
+	# Not exec'd: this is also called from the menu, which has to survive the
+	# run and redraw afterwards.
+	"$CAU_LIBEXECDIR/cachy-auto-update-run" "$@"
 }
 
 cau_do_log() {
