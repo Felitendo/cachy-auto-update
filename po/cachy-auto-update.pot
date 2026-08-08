@@ -134,7 +134,7 @@ msgstr ""
 msgid "Quit"
 msgstr ""
 
-msgid "Press Enter to continue..."
+msgid "Press any key to continue..."
 msgstr ""
 
 #. Commands

@@ -135,8 +135,8 @@ msgstr "Aktuelle Bedingungen anzeigen"
 msgid "Quit"
 msgstr "Beenden"
 
-msgid "Press Enter to continue..."
-msgstr "Zum Fortfahren Enter drücken …"
+msgid "Press any key to continue..."
+msgstr "Zum Fortfahren eine Taste drücken …"
 
 #. Commands
 msgid "Automatic updates are on."

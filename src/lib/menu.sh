@@ -145,7 +145,11 @@ cau_ui_menu() {
 		printf '  [q] %s\n' "$(cau_msg "Quit")"
 		printf '\n  > '
 
-		read -r choice || { printf '\n'; return 0; }
+		# One keypress, no Enter. -s keeps the raw character out of the
+		# display so the echo below is the only thing printed, and a failing
+		# read means EOF (Ctrl-D, or a script piping input) - that quits.
+		read -rsn1 choice || { printf '\n'; return 0; }
+		printf '%s\n' "$choice"
 
 		case "$choice" in
 			1)
@@ -163,13 +167,22 @@ cau_ui_menu() {
 			3) cau_do_run --force; cau_pause ;;
 			4) cau_do_log; cau_pause ;;
 			5) cau_ui_status_conditions; cau_pause ;;
-			q|Q|'') return 0 ;;
+			q|Q) return 0 ;;
+			$'\e')
+				# Arrow keys and friends arrive as ESC [ X. Swallow the rest so
+				# one keypress does not redraw the menu three times. Escape is
+				# deliberately not a quit key: that would make a stray arrow
+				# key close the menu.
+				read -rsn2 -t 0.05 _ 2>/dev/null || true
+				;;
+			# Anything else, Enter included, just redraws.
 			*) ;;
 		esac
 	done
 }
 
 cau_pause() {
-	printf '\n  %s' "$(cau_msg "Press Enter to continue...")"
-	read -r _ || true
+	printf '\n  %s' "$(cau_msg "Press any key to continue...")"
+	read -rsn1 _ || true
+	printf '\n'
 }
