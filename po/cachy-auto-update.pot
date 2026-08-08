@@ -263,3 +263,9 @@ msgstr ""
 
 msgid "The last update was cut short, most likely because the machine was switched off. It is being finished now."
 msgstr ""
+
+msgid "Installing updates"
+msgstr ""
+
+msgid "%d packages are being updated. Please leave the computer switched on until this is done."
+msgstr ""

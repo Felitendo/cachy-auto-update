@@ -98,6 +98,7 @@ cau_config_load() {
 	CFG_RESOLVE_CONFLICTS=no;     cau_config_bool AutoResolveConflicts yes && CFG_RESOLVE_CONFLICTS=yes
 	CFG_CLEAN_CACHE=no;           cau_config_bool CleanCache           yes && CFG_CLEAN_CACHE=yes
 	CFG_REMOVE_ORPHANS=no;        cau_config_bool RemoveOrphans        no  && CFG_REMOVE_ORPHANS=yes
+	CFG_NOTIFY_START=no;          cau_config_bool NotifyOnStart        yes && CFG_NOTIFY_START=yes
 	CFG_NOTIFY_SUCCESS=no;        cau_config_bool NotifyOnSuccess      yes && CFG_NOTIFY_SUCCESS=yes
 	CFG_NOTIFY_ERROR=no;          cau_config_bool NotifyOnError        yes && CFG_NOTIFY_ERROR=yes
 	CFG_NOTIFY_REBOOT=no;         cau_config_bool NotifyReboot         yes && CFG_NOTIFY_REBOOT=yes

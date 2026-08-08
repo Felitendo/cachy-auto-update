@@ -133,6 +133,20 @@ cau_pacman_update() {
 		cau_info "Running a full system upgrade (pending list unavailable)"
 	fi
 
+	# Say so before the transaction starts, not after it finishes.
+	#
+	# While an upgrade runs, a shutdown request is refused by logind and the
+	# desktop answers with a polkit password prompt reading "Power off the
+	# system while an application is inhibiting this" - which never mentions
+	# updates and, on a German system, is not even translated. Somebody who was
+	# simply told beforehand does not end up staring at that.
+	if [[ $CFG_NOTIFY_START == yes ]]; then
+		cau_notify_tagged run no normal \
+			"Installing updates" \
+			"%d packages are being updated. Please leave the computer switched on until this is done." \
+			"${CAU_PACMAN_COUNT:-0}"
+	fi
+
 	mapfile -t flags < <(cau_pacman_flags)
 	log="$(mktemp)" || return 1
 

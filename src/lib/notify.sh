@@ -19,10 +19,23 @@ CAU_NOTIFY_QUEUE_MAX=20
 # Never fails: a machine without libnotify, or with nobody logged in, is a
 # normal state, not an error.
 cau_notify() {
-	local urgency="$1" title="$2" body="$3"
-	shift 3
+	cau_notify_tagged '' yes "$@"
+}
+
+# cau_notify_tagged <tag> <queue: yes|no> <urgency> <title> <body> [args...]
+#
+# A tag makes this notification replace the previous one carrying the same tag
+# rather than stacking a second bubble beside it - that is what turns
+# "installing updates" into "system updated" in place instead of leaving two
+# messages that contradict each other.
+#
+# queue=no is for messages that only mean anything while somebody is looking.
+# Telling a user at next login that an update started an hour ago is noise.
+cau_notify_tagged() {
+	local tag="$1" queue="$2" urgency="$3" title="$4" body="$5"
+	shift 5
 	local -a args=("$@")
-	local delivered=0 user uid locale t b
+	local delivered=0 user uid locale t b prev newid
 
 	[[ $CFG_NOTIFICATIONS == yes ]] || return 0
 
@@ -34,17 +47,28 @@ cau_notify() {
 		t="$(cau_msg_in "$locale" "$title")"
 		b="$(cau_msg_in "$locale" "$body" "${args[@]}")"
 
-		if cau_as_user "$user" "$uid" notify-send \
+		prev=0
+		if [[ -n $tag ]]; then
+			prev="$(cau_state_read "notify_id_${tag}_${user}" 0)"
+			[[ $prev =~ ^[0-9]+$ ]] || prev=0
+		fi
+
+		if newid="$(cau_as_user "$user" "$uid" notify-send \
 			--app-name="$CAU_PRETTY" \
 			--icon="$CAU_NOTIFY_ICON" \
 			--urgency="$urgency" \
-			-- "$t" "$b" 2>/dev/null
+			--print-id --replace-id="$prev" \
+			-- "$t" "$b" 2>/dev/null)"
 		then
 			delivered=1
+			if [[ -n $tag && $newid =~ ^[0-9]+$ ]]; then
+				cau_state_write "notify_id_${tag}_${user}" "$newid"
+			fi
 		fi
 	done < <(cau_active_session_users)
 
 	(( delivered )) && return 0
+	[[ $queue == yes ]] || return 0
 
 	cau_notify_enqueue "$urgency" "$title" "$body" "${args[@]}"
 }

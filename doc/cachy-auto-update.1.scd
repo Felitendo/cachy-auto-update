@@ -102,9 +102,22 @@ restart necessary, a notification says so.
 
 # INTERRUPTED UPDATES
 
+Before a transaction starts, a notification says an update is running and asks
+for the machine to be left on. It is replaced in place by the result once the
+run finishes.
+
 While a transaction is running, *cachy-auto-update* holds a
 *systemd-inhibit*(1) lock on _sleep_ and _shutdown_ in blocking mode, so a
 suspend, a lid close or a normal shutdown request cannot cut it short.
+
+What a user sees when they try anyway is worth knowing: logind refuses the
+request and falls back to the polkit action
+_org.freedesktop.login1.power-off-ignore-inhibit_, which is _auth_admin_keep_,
+so the desktop presents an administrator password prompt reading "Power off the
+system while an application is inhibiting this". That string is shipped
+untranslated by systemd and does not mention updates, and no KDE dialog
+explains the situation either - only *systemctl*(1) names the inhibitor and its
+reason. Hence the notification.
 
 A hard power-off - holding the power button, or losing mains power - is not
 preventable. On the next run a leftover _/var/lib/pacman/db.lck_ is removed if

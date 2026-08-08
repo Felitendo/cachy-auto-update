@@ -127,10 +127,22 @@ unheld on several consecutive runs, you get a notification instead.
 
 Three layers, in order of how much they can actually promise:
 
+**A notification goes out before the transaction starts** — "Installing
+updates, please leave the computer switched on until this is done" — and is
+replaced in place by the result when the run finishes, so it costs one bubble
+rather than two. This exists because of what the next paragraph does *not* do.
+
 **Suspend and a normal shutdown are blocked.** The run holds a
-`systemd-inhibit --what=sleep:shutdown --mode=block` lock, so closing the lid,
-picking "Shut down" from the menu or a short press of the power button will not
-interrupt a transaction — the desktop says something is still busy instead.
+`systemd-inhibit --what=sleep:shutdown --mode=block` lock, so closing the lid or
+picking "Shut down" cannot interrupt a transaction. Be aware of what that looks
+like, though: logind refuses the request and requires the polkit action
+`org.freedesktop.login1.power-off-ignore-inhibit`, which is `auth_admin_keep`.
+The desktop therefore answers a shutdown attempt with an **administrator
+password prompt** reading *"Power off the system while an application is
+inhibiting this"* — a string systemd ships untranslated, and one that never
+mentions updates. No KDE dialog explains the situation. Only `systemctl
+poweroff` in a terminal names the reason. That prompt is exactly why the
+notification above is on by default.
 
 **A hard power-off cannot be prevented by anything.** Holding the power button
 or pulling the plug cuts power in firmware. What limits the damage is that

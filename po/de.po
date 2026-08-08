@@ -264,3 +264,10 @@ msgstr "Abgebrochenes Update wird beendet"
 
 msgid "The last update was cut short, most likely because the machine was switched off. It is being finished now."
 msgstr "Das letzte Update wurde unterbrochen, vermutlich weil der Rechner ausgeschaltet wurde. Es wird jetzt zu Ende geführt."
+
+msgid "Installing updates"
+msgstr "Updates werden installiert"
+
+#, c-format
+msgid "%d packages are being updated. Please leave the computer switched on until this is done."
+msgstr "%d Pakete werden gerade aktualisiert. Bitte den Rechner so lange eingeschaltet lassen."

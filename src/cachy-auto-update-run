@@ -213,7 +213,7 @@ cau_state_write last_counts \
 if (( failed )); then
 	cau_state_write last_result failed
 	cau_error "Update run finished with errors"
-	[[ $CFG_NOTIFY_ERROR == yes ]] && cau_notify critical \
+	[[ $CFG_NOTIFY_ERROR == yes ]] && cau_notify_tagged run yes critical \
 		"Update failed" \
 		"Something went wrong while updating. Run 'cachy-auto-update log' for details."
 else
@@ -222,7 +222,7 @@ else
 	cau_info "Update run finished successfully ($total item(s) updated)"
 
 	if (( total > 0 )) && [[ $CFG_NOTIFY_SUCCESS == yes ]]; then
-		cau_notify low "System updated" "%d updates were installed." "$total"
+		cau_notify_tagged run yes low "System updated" "%d updates were installed." "$total"
 	fi
 fi
 
