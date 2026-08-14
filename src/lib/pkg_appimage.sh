@@ -43,7 +43,7 @@ cau_appimage_update() {
 	local user uid count rc=0
 	local -a cmd
 
-	cau_progress_step appimage "AppImages"
+	cau_progress_step appimage "Updating AppImages"
 
 	while read -r user uid; do
 		[[ -n $user ]] || continue

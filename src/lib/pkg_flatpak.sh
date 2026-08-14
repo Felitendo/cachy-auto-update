@@ -28,7 +28,7 @@ cau_flatpak_update() {
 
 	cau_have flatpak || return 0
 
-	cau_progress_step flatpak "Flatpaks"
+	cau_progress_step flatpak "Updating Flatpak apps"
 
 	# refresh appstream metadata first so remote-ls sees current versions
 	cau_run_logged flatpak update --appstream --system --noninteractive || true

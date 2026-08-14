@@ -231,20 +231,24 @@ msgid "Without a command an interactive menu is shown."
 msgstr "Ohne Befehl wird ein interaktives Menü angezeigt."
 
 #. Progress bar
-msgid "Repository packages"
-msgstr "Paketquellen"
+#. The headline of the desktop's progress entry. Whoever reads it has not gone
+#. looking for it - it appears next to whatever they were doing - so each one
+#. says outright that this is an update running, rather than naming the kind of
+#. package on its own.
+msgid "Updating system packages"
+msgstr "Systempakete werden aktualisiert"
 
-msgid "AUR packages"
-msgstr "AUR-Pakete"
+msgid "Updating AUR packages"
+msgstr "AUR-Pakete werden aktualisiert"
 
-msgid "Flatpaks"
-msgstr "Flatpaks"
+msgid "Updating Flatpak apps"
+msgstr "Flatpak-Programme werden aktualisiert"
 
-msgid "AppImages"
-msgstr "AppImages"
+msgid "Updating AppImages"
+msgstr "AppImages werden aktualisiert"
 
-msgid "Cleaning up"
-msgstr "Wird aufgeräumt"
+msgid "Cleaning up after the update"
+msgstr "Aufräumen nach dem Update"
 
 msgid "Package"
 msgstr "Paket"

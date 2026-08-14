@@ -230,19 +230,23 @@ msgid "Without a command an interactive menu is shown."
 msgstr ""
 
 #. Progress bar
-msgid "Repository packages"
+#. The headline of the desktop's progress entry. Whoever reads it has not gone
+#. looking for it - it appears next to whatever they were doing - so each one
+#. says outright that this is an update running, rather than naming the kind of
+#. package on its own.
+msgid "Updating system packages"
 msgstr ""
 
-msgid "AUR packages"
+msgid "Updating AUR packages"
 msgstr ""
 
-msgid "Flatpaks"
+msgid "Updating Flatpak apps"
 msgstr ""
 
-msgid "AppImages"
+msgid "Updating AppImages"
 msgstr ""
 
-msgid "Cleaning up"
+msgid "Cleaning up after the update"
 msgstr ""
 
 msgid "Package"

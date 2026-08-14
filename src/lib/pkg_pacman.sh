@@ -198,7 +198,7 @@ cau_pacman_update() {
 	local log kind
 	local -a flags
 
-	cau_progress_step repo "Repository packages"
+	cau_progress_step repo "Updating system packages"
 
 	if ! cau_pacman_pending; then
 		cau_info "No repository updates pending"
@@ -342,7 +342,7 @@ cau_pacman_pacnew_count() {
 cau_pacman_cleanup() {
 	local -a orphans
 
-	cau_progress_step cleanup "Cleaning up"
+	cau_progress_step cleanup "Cleaning up after the update"
 
 	if [[ $CFG_REMOVE_ORPHANS == yes ]]; then
 		mapfile -t orphans < <(pacman -Qtdq 2>/dev/null)

@@ -126,7 +126,7 @@ cau_aur_update() {
 
 	cau_aur_ready || return 0
 
-	cau_progress_step aur "AUR packages"
+	cau_progress_step aur "Updating AUR packages"
 
 	pending="$(cau_aur_pending)"
 	if (( pending == 0 )); then
