@@ -174,6 +174,17 @@ msgstr ""
 msgid "cachy-update's update check has been disabled."
 msgstr ""
 
+msgid "CachyOS shows a \"Reboot recommended\" notification while an update is still running. Turn it off? [Y/n]"
+msgstr ""
+
+#, c-format
+msgid "The reboot notification has been turned off. Undo it by deleting %s."
+msgstr ""
+
+#, c-format
+msgid "Could not write %s."
+msgstr ""
+
 msgid "No log yet."
 msgstr ""
 

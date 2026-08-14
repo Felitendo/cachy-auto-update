@@ -84,6 +84,48 @@ cau_do_enable() {
 	fi
 
 	cau_offer_disable_cachy_update
+	cau_offer_disable_reboot_hook
+}
+
+# CachyOS ships a pacman hook that pops up "Reboot recommended!" the moment a
+# kernel, driver or systemd package is unpacked. During a manual upgrade that
+# is fine - the transaction is the last thing happening. During an unattended
+# one it lands in the middle: the run still has AUR packages to build and
+# Flatpaks to pull, and a notification asking for a restart right then is an
+# invitation to cut the update in half.
+#
+# pacman lets a hook be overridden by name from /etc/pacman.d/hooks, which takes
+# precedence over /usr/share/libalpm/hooks, and a symlink to /dev/null there
+# disables it. That is the standard way to switch off a distribution hook, and
+# it is undone by deleting the link.
+#
+# This one is offered, never decided: it is another package's behaviour and it
+# applies to manual upgrades too.
+CAU_REBOOT_HOOK="cachyos-reboot-required.hook"
+
+cau_offer_disable_reboot_hook() {
+	local system="/usr/share/libalpm/hooks/$CAU_REBOOT_HOOK"
+	local override="/etc/pacman.d/hooks/$CAU_REBOOT_HOOK"
+	local answer
+
+	[[ -t 0 && -t 1 ]] || return 0
+	[[ -f $system ]] || return 0
+	[[ -e $override || -L $override ]] && return 0
+
+	printf '\n  %s\n  ' \
+		"$(cau_msg "CachyOS shows a \"Reboot recommended\" notification while an update is still running. Turn it off? [Y/n]")"
+	read -r answer || return 0
+
+	case "${answer,,}" in
+		''|y|yes|j|ja) ;;
+		*) return 0 ;;
+	esac
+
+	if mkdir -p /etc/pacman.d/hooks 2>/dev/null && ln -sfn /dev/null "$override" 2>/dev/null; then
+		cau_ok "$(cau_msg "The reboot notification has been turned off. Undo it by deleting %s." "$override")"
+	else
+		cau_bad "$(cau_msg "Could not write %s." "$override")"
+	fi
 }
 
 # Whether an AUR helper exists at all, without the logging cau_aur_detect does.

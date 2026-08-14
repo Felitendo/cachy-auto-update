@@ -27,37 +27,69 @@ cau_pacman_flags() {
 	done
 }
 
+# The verbs pacman puts in front of a package as it works through a
+# transaction. Matched against English on purpose: the runner forces LC_ALL=C
+# precisely so pacman's output stays parseable.
+CAU_PACMAN_OP_RE='^(\([[:space:]]*[0-9]+/[0-9]+\) )?(upgrading|installing|reinstalling|downgrading|removing) [^[:space:]]+'
+
 # _cau_pacman_progress_watch <logfile>
-# Feeds the desktop's progress bar from pacman's own transaction counter.
-# --noprogressbar makes pacman print one "(120/260) upgrading foo" line per
-# package, and that is the only live measure of how far a transaction has got:
-# checkupdates knows the total beforehand, but nothing else knows the position.
+# Feeds the desktop's progress bar by watching pacman work.
 #
-# The other (n/m) sequences pacman prints - checking keys in keyring, checking
-# package integrity, loading package files - are deliberately not matched. Each
-# counts up to the same total, so following them would run the bar to the end
-# three times over before the first package was unpacked.
+# pacman announces each package twice over, in one of two shapes, and which one
+# depends on a flag this program sets itself:
 #
-# Read from the log by polling rather than from a pipe: the log is written
-# either by pacman directly or through tee, depending on whether a person is
-# watching, and one reader that works for both is worth more here than the
-# second or so of latency it costs.
+#   upgrading glibc...              with --noprogressbar, i.e. every timer run
+#   ( 12/218) upgrading glibc [##]  with the bar, i.e. an interactive `run`
+#
+# Only the second carries a counter, and the unattended runs that this bar
+# exists for are exactly the ones that do not get it. So the position is
+# counted here instead - one line per package - and the total taken from the
+# "Package (218)" header pacman prints before it starts. That header is the
+# better number anyway: checkupdates counts packages with an update available
+# and knows nothing about the new dependencies pulled in alongside them.
+#
+# What must not be counted is the other (n/m) sequence pacman prints, for
+# hooks and for checking keys, integrity and file conflicts. Each of those runs
+# up to its own total, so following them would drive the bar to the end several
+# times before the first package was unpacked. Requiring one of the verbs above
+# is what excludes them.
+#
+# Read by polling the log rather than from a pipe: the log is written either by
+# pacman directly or through tee depending on whether a person is watching, and
+# one reader that works for both is worth the second of latency it costs.
 _cau_pacman_progress_watch() {
-	local log="$1" line last='' pkg
+	local log="$1"
+	local total="${CAU_PACMAN_COUNT:-0}" announced processed line pkg last=''
 
 	while :; do
 		sleep 1
 
-		line="$(grep -aoE '^\([[:space:]]*[0-9]+/[0-9]+\) (upgrading|installing|reinstalling|downgrading|removing) [^[:space:]]+' \
-			"$log" 2>/dev/null | tail -n1)"
-		[[ -n $line && $line != "$last" ]] || continue
+		announced="$(grep -aoE '^Packages? \([0-9]+\)' "$log" 2>/dev/null \
+			| head -n1 | grep -oE '[0-9]+')"
+		[[ $announced =~ ^[0-9]+$ ]] && (( announced > 0 )) && total="$announced"
+
+		line="$(grep -aoE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null | tail -n1)"
+		[[ -n $line ]] || continue
+
+		# Nothing new since the last look. Checked before the counting grep
+		# because on a large upgrade this loop spends most of its life here.
+		[[ $line != "$last" ]] || continue
 		last="$line"
 
-		[[ $line =~ ^\([[:space:]]*([0-9]+)/([0-9]+)\)[[:space:]]+[a-z]+[[:space:]]+(.+)$ ]] || continue
+		processed="$(grep -acE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null)"
+		[[ $processed =~ ^[0-9]+$ ]] || continue
 
-		cau_progress_item "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
-		pkg="${BASH_REMATCH[3]%...}"
-		cau_progress_detail "Package" "$pkg"
+		# Where pacman does carry a counter, believe it over the tally: it is
+		# the same number, but it also knows the true total.
+		if [[ $line =~ ^\([[:space:]]*([0-9]+)/([0-9]+)\) ]]; then
+			processed="${BASH_REMATCH[1]}"
+			total="${BASH_REMATCH[2]}"
+		fi
+
+		cau_progress_item "$processed" "$total"
+
+		pkg="${line##* }"
+		cau_progress_detail "Package" "${pkg%...}"
 	done
 }
 
