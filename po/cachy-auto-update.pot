@@ -218,6 +218,28 @@ msgstr ""
 msgid "Without a command an interactive menu is shown."
 msgstr ""
 
+#. Progress bar
+msgid "Repository packages"
+msgstr ""
+
+msgid "AUR packages"
+msgstr ""
+
+msgid "Flatpaks"
+msgstr ""
+
+msgid "AppImages"
+msgstr ""
+
+msgid "Cleaning up"
+msgstr ""
+
+msgid "Package"
+msgstr ""
+
+msgid "The update was stopped before it finished."
+msgstr ""
+
 #. Notifications
 msgid "System updated"
 msgstr ""
@@ -230,12 +252,6 @@ msgid "Update failed"
 msgstr ""
 
 msgid "Something went wrong while updating. Run 'cachy-auto-update log' for details."
-msgstr ""
-
-msgid "Restart recommended"
-msgstr ""
-
-msgid "A new kernel was installed. Please restart when it suits you."
 msgstr ""
 
 msgid "Package database locked"
@@ -289,9 +305,6 @@ msgid "Notify after a successful update"
 msgstr ""
 
 msgid "Notify when something goes wrong"
-msgstr ""
-
-msgid "Notify when a restart is needed"
 msgstr ""
 
 msgid "Time between update runs"

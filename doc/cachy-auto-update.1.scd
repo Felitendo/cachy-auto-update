@@ -100,14 +100,57 @@ inside each user's own account. AppImages are updated through Gear Lever, for
 users with a graphical session, and AppImages whose application is currently
 running are skipped.
 
-The machine is never restarted automatically. When a kernel update makes a
-restart necessary, a notification says so.
+The machine is never restarted automatically. A kernel update that makes a
+restart necessary is reported by *cachy-auto-update status*, not by a
+notification: the running kernel loses its module tree as soon as pacman
+unpacks the new one, so a bubble would fire while the run is still working
+through AUR packages and Flatpaks, and reads as an invitation to restart in the
+middle of it.
+
+# PROGRESS
+
+For as long as a run is working, the notification area carries a live progress
+entry: the step being performed, how many items it has got through, an overall
+percentage, and the package currently being unpacked under "Details". This is a
+job in the sense of *org.kde.JobViewServer*, the same mechanism a file manager
+uses while copying, rather than a notification - which is what makes it a bar
+instead of a line of text.
+
+The desktop withdraws a job as soon as the D-Bus connection that requested it
+closes, so a helper process runs inside each graphical session for the duration
+of the update and holds that connection open. It requires _python-gobject_.
+Where that is missing, or on a desktop with no job interface, there is no
+progress entry and nothing else is affected.
+
+The position within the repository step is read from pacman's own
+"(120/260) upgrading foo" output. Its other (n/m) sequences - checking keys,
+package integrity, loading package files - each count up to the same total and
+are deliberately ignored.
+
+# HOW LONG NOTIFICATIONS STAY
+
+A message that reports the machine still needing a person - an update that
+failed, a package database left locked, packages that had to be held back -
+stays on screen until it is dismissed. A message like that is only worth
+sending if it is still there when somebody comes back to the machine.
+
+Everything else times out by itself, an update that simply worked included.
+Nothing should have to be clicked away for having gone right.
+
+This is set per message rather than left to the notification daemon. Daemons do
+keep critical-urgency messages up, and the specification asks them to, but that
+is a recommendation, it does not cover the normal-urgency messages here that
+still need somebody to act, and urgency separately governs sound and whether
+do-not-disturb is overridden.
+
+Where nobody is logged in the message is spooled and delivered at the next
+login, with the same distinction preserved.
 
 # INTERRUPTED UPDATES
 
 Before a transaction starts, a notification says an update is running and asks
-for the machine to be left on. It is replaced in place by the result once the
-run finishes.
+for the machine to be left on. It is withdrawn again when the result arrives,
+so one bubble is used rather than two.
 
 While a transaction is running, *cachy-auto-update* holds a
 *systemd-inhibit*(1) lock on _sleep_ and _shutdown_ in blocking mode, so a

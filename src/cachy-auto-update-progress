@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+#
+# cachy-auto-update-progress - the update's progress bar on the desktop
+#
+# Started by the update runner, once per logged-in user, inside that user's
+# session. Reads one instruction per line on stdin and turns it into the same
+# progress entry the desktop shows while Dolphin copies files:
+#
+#   info<TAB>text          headline, already translated by the caller
+#   detail<TAB>name<TAB>value  a labelled line under "Details"
+#   total<TAB>n            how many items this step has
+#   done<TAB>n             how many of them are finished
+#   percent<TAB>n          overall progress, 0-100
+#   end[<TAB>message]      finish; a message marks the job as failed
+#
+# Why a separate process at all: the desktop ties the progress entry to the
+# D-Bus connection that asked for it and withdraws the entry the moment that
+# connection goes away. One-shot callers - gdbus, busctl, dbus-send - therefore
+# cannot drive one, because each invocation is its own connection that closes
+# again immediately. So something has to sit there and hold the connection open
+# for as long as the update takes, and read its orders from somewhere else.
+#
+# Copyright (C) 2026 Felitendo
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import sys
+
+try:
+    from gi.repository import Gio, GLib
+except ImportError:
+    # No GLib bindings: the update itself is unaffected, there is just no bar.
+    # Stdin is still drained, because the runner writes into a pipe and a
+    # reader that walks away would eventually block the update behind a full
+    # pipe buffer.
+    for _ in sys.stdin:
+        pass
+    sys.exit(0)
+
+JOB_SERVICE = "org.kde.JobViewServer"
+JOB_PATH = "/JobViewServer"
+DESKTOP_ENTRY = "cachy-auto-update"
+
+
+class Job:
+    """The progress entry, or a do-nothing stand-in where there is no desk."""
+
+    def __init__(self):
+        self.bus = None
+        self.path = None
+
+    def open(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        reply = self.bus.call_sync(
+            JOB_SERVICE, JOB_PATH, "org.kde.JobViewServerV2", "requestView",
+            # capabilities 0: no cancel and no pause button. Neither can be
+            # honoured - pacman's commit phase is not interruptible - and a
+            # button that does nothing is worse than no button.
+            GLib.Variant("(sia{sv})", (DESKTOP_ENTRY, 0, {})),
+            GLib.VariantType("(o)"), Gio.DBusCallFlags.NONE, -1, None)
+        self.path = reply.unpack()[0]
+
+    def call(self, method, variant):
+        if self.path is None:
+            return
+        try:
+            self.bus.call_sync(
+                JOB_SERVICE, self.path, "org.kde.JobViewV2", method, variant,
+                None, Gio.DBusCallFlags.NONE, -1, None)
+        except GLib.Error:
+            # The desktop went away mid-update - a logout, or a plasmashell
+            # restart. The update carries on without a bar.
+            self.path = None
+
+    def close(self, message=""):
+        # Always terminate explicitly. A job whose owner simply disappears is
+        # reported by the desktop as "the application closed unexpectedly",
+        # which would turn every successful update into a failure notice.
+        #
+        # The error code is what decides how the entry is labelled; passing a
+        # message to terminate() on its own still files the job as completed,
+        # which next to "the update was stopped before it finished" reads as a
+        # contradiction.
+        #
+        # 100 is KJob::UserDefinedError, and the value does matter: 1 is
+        # KJob::KilledJobError, which the desktop discards without showing
+        # anything on the grounds that whoever killed the job already knows.
+        if message:
+            self.call("setError", GLib.Variant("(u)", (100,)))
+        self.call("terminate", GLib.Variant("(s)", (message,)))
+        self.path = None
+
+
+def main():
+    job = Job()
+    try:
+        job.open()
+    except GLib.Error:
+        # No job server on this desktop - anything that is not Plasma. Same
+        # deal as a missing binding: drain stdin, stay out of the way.
+        for _ in sys.stdin:
+            pass
+        return 0
+
+    unit = "items"
+    try:
+        for line in sys.stdin:
+            fields = line.rstrip("\n").split("\t")
+            cmd = fields[0]
+            arg = fields[1] if len(fields) > 1 else ""
+
+            if cmd == "info":
+                job.call("setInfoMessage", GLib.Variant("(s)", (arg,)))
+            elif cmd == "detail" and len(fields) > 2:
+                job.call("setDescriptionField",
+                         GLib.Variant("(uss)", (0, arg, fields[2])))
+            elif cmd == "total":
+                job.call("setTotalAmount", GLib.Variant("(ts)", (int(arg), unit)))
+            elif cmd == "done":
+                job.call("setProcessedAmount", GLib.Variant("(ts)", (int(arg), unit)))
+            elif cmd == "percent":
+                job.call("setPercent", GLib.Variant("(u)", (int(arg),)))
+            elif cmd == "end":
+                job.close(arg)
+                break
+    except (ValueError, IndexError):
+        # A malformed line is a bug on the writing side, not a reason to leave
+        # a stuck progress bar on somebody's desktop.
+        pass
+    except KeyboardInterrupt:
+        pass
+    finally:
+        job.close()
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

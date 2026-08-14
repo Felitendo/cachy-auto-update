@@ -28,14 +28,18 @@ cau_flatpak_update() {
 
 	cau_have flatpak || return 0
 
+	cau_progress_step flatpak "Flatpaks"
+
 	# refresh appstream metadata first so remote-ls sees current versions
 	cau_run_logged flatpak update --appstream --system --noninteractive || true
 
 	pending="$(cau_flatpak_pending_system)"
 	if (( pending > 0 )); then
 		cau_info "Updating $pending system Flatpak(s)"
+		cau_progress_item 0 "$pending"
 		if cau_run_logged flatpak update --system --noninteractive --assumeyes; then
 			CAU_FLATPAK_COUNT=$(( CAU_FLATPAK_COUNT + pending ))
+			cau_progress_item "$pending"
 		else
 			cau_warn "System Flatpak update failed"
 			rc=1

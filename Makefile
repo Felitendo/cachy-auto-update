@@ -8,7 +8,7 @@
 # Overridable so a packager can pass the version it is actually building
 # (`make VERSION=$pkgver`). The literal below is the fallback for builds
 # straight from a checkout, and is what a release tag has to carry.
-VERSION      ?= 1.1.2
+VERSION      ?= 1.2.0
 
 PREFIX       ?= /usr
 DESTDIR      ?=
@@ -64,6 +64,13 @@ check:
 	else \
 		echo "shellcheck not found - skipped"; \
 	fi
+	@if command -v python3 >/dev/null 2>&1; then \
+		python3 -m py_compile src/cachy-auto-update-progress \
+			&& echo "ok  src/cachy-auto-update-progress"; \
+		rm -rf src/__pycache__; \
+	else \
+		echo "python3 not found - skipped"; \
+	fi
 	@if command -v visudo >/dev/null 2>&1; then \
 		visudo -cf res/sudoers/cachy-auto-update >/dev/null && echo "ok  sudoers"; \
 	fi
@@ -72,6 +79,9 @@ install: build
 	# executables
 	install -Dm755 src/cachy-auto-update     "$(DESTDIR)$(BINDIR)/cachy-auto-update"
 	install -Dm755 src/cachy-auto-update-run "$(DESTDIR)$(LIBEXECDIR)/cachy-auto-update-run"
+	# holds a session bus connection open so the update can drive a progress bar
+	install -Dm755 src/cachy-auto-update-progress \
+		"$(DESTDIR)$(LIBEXECDIR)/cachy-auto-update-progress"
 	# the version and the resolved lib path are baked in at install time
 	sed -i -e 's|@VERSION@|$(VERSION)|g' \
 	       -e 's|@LIBDIR@|$(LIBDIR)|g' \
@@ -114,6 +124,10 @@ install: build
 	install -Dm644 res/autostart/cachy-auto-update-notify.desktop \
 		"$(DESTDIR)$(XDGAUTOSTART)/cachy-auto-update-notify.desktop"
 
+	# names and illustrates the progress bar; hidden from the application menu
+	install -Dm644 res/applications/cachy-auto-update.desktop \
+		"$(DESTDIR)$(DATADIR)/applications/cachy-auto-update.desktop"
+
 	# translations
 	@for l in $(LINGUAS); do \
 		if [ -f "po/$$l.mo" ]; then \
@@ -138,6 +152,7 @@ uninstall:
 	rm -f  "$(DESTDIR)$(SYSTEMDDIR)/cachy-auto-update.service"
 	rm -f  "$(DESTDIR)$(SYSTEMDDIR)/cachy-auto-update.timer"
 	rm -f  "$(DESTDIR)$(XDGAUTOSTART)/cachy-auto-update-notify.desktop"
+	rm -f  "$(DESTDIR)$(DATADIR)/applications/cachy-auto-update.desktop"
 	rm -f  "$(DESTDIR)$(MANDIR)/man1/cachy-auto-update.1"
 
 clean:

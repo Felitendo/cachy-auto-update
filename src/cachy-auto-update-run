@@ -14,7 +14,7 @@ set -uo pipefail
 
 CAU_LIBDIR="${CAU_LIBDIR:-@LIBDIR@}"
 
-for _mod in common config users conditions locks notify \
+for _mod in common config users conditions locks notify progress \
             pkg_pacman pkg_aur pkg_flatpak pkg_appimage; do
 	# shellcheck source=/dev/null
 	if ! source "$CAU_LIBDIR/$_mod.sh"; then
@@ -71,6 +71,10 @@ cau_log_open
 # all landed or none did; only our own bookkeeping is at risk here.
 _cau_interrupted() {
 	cau_error "Update run interrupted ($1)"
+	# Before anything else: a progress entry whose owner merely disappears is
+	# reported by the desktop as an application crash, so a killed run would
+	# leave a failure message behind on top of everything else.
+	cau_progress_end failed "The update was stopped before it finished."
 	cau_state_write last_result interrupted
 	exit 130
 }
@@ -121,7 +125,7 @@ fi
 # before the busy check, because otherwise every future run would defer on it
 # forever and the machine would quietly stop updating.
 if cau_recover_stale_lock; then
-	cau_notify normal \
+	cau_notify normal no \
 		"Finishing an interrupted update" \
 		"The last update was cut short, most likely because the machine was switched off. It is being finished now."
 fi
@@ -132,7 +136,7 @@ CAU_SKIP_REASON=''
 if cau_package_manager_busy; then
 	if cau_track_stale_lock; then
 		cau_warn "pacman's database lock appears to be stale"
-		cau_notify normal \
+		cau_notify normal yes \
 			"Package database locked" \
 			"pacman's lock file looks left over from an interrupted update. Updates are paused until it is cleared."
 	fi
@@ -178,6 +182,16 @@ fi
 cau_info "Starting update run"
 failed=0
 
+# Open the desktop's progress bar, told up front which steps this run will
+# perform. Only those count towards the bar, so a machine with no Flatpaks
+# does not sit at 85% for the last second of the run.
+progress_steps=(repo)
+[[ $CFG_AUR == yes ]]      && progress_steps+=(aur)
+[[ $CFG_FLATPAK == yes ]]  && progress_steps+=(flatpak)
+[[ $CFG_APPIMAGE == yes ]] && progress_steps+=(appimage)
+progress_steps+=(cleanup)
+cau_progress_begin "${progress_steps[@]}"
+
 if ! cau_pacman_update; then
 	failed=1
 fi
@@ -196,6 +210,15 @@ fi
 
 cau_pacman_cleanup
 
+# The work is over; the bar goes away and the result takes over from here. No
+# label on a failure: the notification below carries that, and it stays up
+# until it is dismissed.
+if (( failed )); then
+	cau_progress_end failed
+else
+	cau_progress_end ok
+fi
+
 pacnew="$(cau_pacman_pacnew_count)"
 if [[ $pacnew =~ ^[0-9]+$ ]] && (( pacnew > 0 )); then
 	cau_info "$pacnew .pacnew file(s) present; left untouched"
@@ -213,7 +236,7 @@ cau_state_write last_counts \
 if (( failed )); then
 	cau_state_write last_result failed
 	cau_error "Update run finished with errors"
-	[[ $CFG_NOTIFY_ERROR == yes ]] && cau_notify_tagged run yes critical \
+	[[ $CFG_NOTIFY_ERROR == yes ]] && cau_notify_tagged run yes critical yes \
 		"Update failed" \
 		"Something went wrong while updating. Run 'cachy-auto-update log' for details."
 else
@@ -222,7 +245,8 @@ else
 	cau_info "Update run finished successfully ($total item(s) updated)"
 
 	if (( total > 0 )) && [[ $CFG_NOTIFY_SUCCESS == yes ]]; then
-		cau_notify_tagged run yes low "System updated" "%d updates were installed." "$total"
+		cau_notify_tagged run yes low no \
+			"System updated" "%d updates were installed." "$total"
 	fi
 fi
 
@@ -234,7 +258,7 @@ if [[ -n $CAU_PACMAN_HELD ]]; then
 	cau_state_write held_back "$CAU_PACMAN_HELD"
 	cau_warn "Held back: $CAU_PACMAN_HELD"
 	if [[ $CAU_PACMAN_HELD != "$prev_held" && $CFG_NOTIFY_ERROR == yes ]]; then
-		cau_notify normal "Some packages were held back" \
+		cau_notify normal yes "Some packages were held back" \
 			"%s could not be updated and was skipped. Everything else is up to date." \
 			"$CAU_PACMAN_HELD"
 	fi
@@ -242,12 +266,15 @@ else
 	cau_state_clear held_back
 fi
 
+# Recorded, deliberately not announced. The running kernel loses its module
+# tree the moment pacman unpacks the new one, so this turns true partway
+# through a run that still has AUR builds and Flatpaks ahead of it - and a
+# "restart recommended" bubble arriving then reads as an invitation to restart
+# while the update is still going. `cachy-auto-update status` and the menu say
+# so instead, where nobody is being interrupted mid-transaction.
 if cau_pacman_reboot_needed; then
 	cau_state_write reboot_needed 1
 	cau_info "A kernel update needs a restart"
-	[[ $CFG_NOTIFY_REBOOT == yes ]] && cau_notify normal \
-		"Restart recommended" \
-		"A new kernel was installed. Please restart when it suits you."
 else
 	cau_state_write reboot_needed 0
 fi

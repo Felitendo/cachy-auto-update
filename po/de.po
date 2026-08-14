@@ -219,6 +219,28 @@ msgstr "Version anzeigen"
 msgid "Without a command an interactive menu is shown."
 msgstr "Ohne Befehl wird ein interaktives Menü angezeigt."
 
+#. Progress bar
+msgid "Repository packages"
+msgstr "Paketquellen"
+
+msgid "AUR packages"
+msgstr "AUR-Pakete"
+
+msgid "Flatpaks"
+msgstr "Flatpaks"
+
+msgid "AppImages"
+msgstr "AppImages"
+
+msgid "Cleaning up"
+msgstr "Wird aufgeräumt"
+
+msgid "Package"
+msgstr "Paket"
+
+msgid "The update was stopped before it finished."
+msgstr "Das Update wurde vor dem Ende abgebrochen."
+
 #. Notifications
 msgid "System updated"
 msgstr "System aktualisiert"
@@ -232,12 +254,6 @@ msgstr "Update fehlgeschlagen"
 
 msgid "Something went wrong while updating. Run 'cachy-auto-update log' for details."
 msgstr "Beim Update ist etwas schiefgelaufen. Details mit „cachy-auto-update log“."
-
-msgid "Restart recommended"
-msgstr "Neustart empfohlen"
-
-msgid "A new kernel was installed. Please restart when it suits you."
-msgstr "Es wurde ein neuer Kernel installiert. Bitte bei Gelegenheit neu starten."
 
 msgid "Package database locked"
 msgstr "Paketdatenbank gesperrt"
@@ -292,9 +308,6 @@ msgstr "Melden nach erfolgreichem Update"
 
 msgid "Notify when something goes wrong"
 msgstr "Melden, wenn etwas schiefgeht"
-
-msgid "Notify when a restart is needed"
-msgstr "Melden, wenn ein Neustart nötig ist"
 
 msgid "Time between update runs"
 msgstr "Abstand zwischen Update-Läufen"

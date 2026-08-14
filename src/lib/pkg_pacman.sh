@@ -27,6 +27,40 @@ cau_pacman_flags() {
 	done
 }
 
+# _cau_pacman_progress_watch <logfile>
+# Feeds the desktop's progress bar from pacman's own transaction counter.
+# --noprogressbar makes pacman print one "(120/260) upgrading foo" line per
+# package, and that is the only live measure of how far a transaction has got:
+# checkupdates knows the total beforehand, but nothing else knows the position.
+#
+# The other (n/m) sequences pacman prints - checking keys in keyring, checking
+# package integrity, loading package files - are deliberately not matched. Each
+# counts up to the same total, so following them would run the bar to the end
+# three times over before the first package was unpacked.
+#
+# Read from the log by polling rather than from a pipe: the log is written
+# either by pacman directly or through tee, depending on whether a person is
+# watching, and one reader that works for both is worth more here than the
+# second or so of latency it costs.
+_cau_pacman_progress_watch() {
+	local log="$1" line last='' pkg
+
+	while :; do
+		sleep 1
+
+		line="$(grep -aoE '^\([[:space:]]*[0-9]+/[0-9]+\) (upgrading|installing|reinstalling|downgrading|removing) [^[:space:]]+' \
+			"$log" 2>/dev/null | tail -n1)"
+		[[ -n $line && $line != "$last" ]] || continue
+		last="$line"
+
+		[[ $line =~ ^\([[:space:]]*([0-9]+)/([0-9]+)\)[[:space:]]+[a-z]+[[:space:]]+(.+)$ ]] || continue
+
+		cau_progress_item "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+		pkg="${BASH_REMATCH[3]%...}"
+		cau_progress_detail "Package" "$pkg"
+	done
+}
+
 # _cau_pacman_exec <logfile> <pacman args...>
 # Captures pacman's output for classification, and streams it as well when a
 # person is watching. Upgrading a few hundred packages takes minutes; without
@@ -35,13 +69,28 @@ cau_pacman_flags() {
 _cau_pacman_exec() {
 	local log="$1"
 	shift
+	local rc watcher=0
+
+	# Only worth a second process and a grep per second if a bar exists to feed.
+	if cau_progress_active; then
+		_cau_pacman_progress_watch "$log" &
+		watcher=$!
+	fi
 
 	if [[ -n $CAU_INTERACTIVE ]]; then
 		pacman "$@" 2>&1 | tee "$log"
-		return "${PIPESTATUS[0]}"
+		rc="${PIPESTATUS[0]}"
+	else
+		pacman "$@" > "$log" 2>&1
+		rc=$?
 	fi
 
-	pacman "$@" > "$log" 2>&1
+	if (( watcher )); then
+		kill "$watcher" 2>/dev/null
+		wait "$watcher" 2>/dev/null
+	fi
+
+	return "$rc"
 }
 
 # cau_pacman_pending
@@ -117,6 +166,8 @@ cau_pacman_update() {
 	local log kind
 	local -a flags
 
+	cau_progress_step repo "Repository packages"
+
 	if ! cau_pacman_pending; then
 		cau_info "No repository updates pending"
 		return 0
@@ -126,6 +177,7 @@ cau_pacman_update() {
 		CAU_PACMAN_COUNT="$(grep -c . <<< "$CAU_PACMAN_PENDING")"
 		[[ $CAU_PACMAN_COUNT =~ ^[0-9]+$ ]] || CAU_PACMAN_COUNT=0
 		cau_info "Updating $CAU_PACMAN_COUNT repository package(s)"
+		cau_progress_item 0 "$CAU_PACMAN_COUNT"
 	else
 		# checkupdates is unavailable, so the list is unknown and pacman is
 		# asked to work it out itself.
@@ -141,7 +193,7 @@ cau_pacman_update() {
 	# updates and, on a German system, is not even translated. Somebody who was
 	# simply told beforehand does not end up staring at that.
 	if [[ $CFG_NOTIFY_START == yes ]]; then
-		cau_notify_tagged run no normal \
+		cau_notify_tagged run no normal no \
 			"Installing updates" \
 			"%d packages are being updated. Please leave the computer switched on until this is done." \
 			"${CAU_PACMAN_COUNT:-0}"
@@ -257,6 +309,8 @@ cau_pacman_pacnew_count() {
 # Optional and off by default.
 cau_pacman_cleanup() {
 	local -a orphans
+
+	cau_progress_step cleanup "Cleaning up"
 
 	if [[ $CFG_REMOVE_ORPHANS == yes ]]; then
 		mapfile -t orphans < <(pacman -Qtdq 2>/dev/null)

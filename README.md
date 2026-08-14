@@ -83,8 +83,11 @@ A run is postponed — and retried an hour later — when:
 `cachy-auto-update status` prints every one of these individually, which is the
 fastest way to find out why nothing is happening.
 
-The machine is **never** restarted on its own. When a kernel update needs a
-restart, you get a notification saying so.
+The machine is **never** restarted on its own. A kernel update that needs a
+restart is reported by `cachy-auto-update status`, not by a notification: the
+running kernel loses its module tree the moment pacman unpacks the new one, so
+a bubble would arrive while the run is still building AUR packages and pulling
+Flatpaks — and reads as an invitation to restart in the middle of it.
 
 ## About the password question
 
@@ -134,8 +137,15 @@ Three layers, in order of how much they can actually promise:
 
 **A notification goes out before the transaction starts** — "Installing
 updates, please leave the computer switched on until this is done" — and is
-replaced in place by the result when the run finishes, so it costs one bubble
-rather than two. This exists because of what the next paragraph does *not* do.
+withdrawn again when the result arrives, so it costs one bubble rather than
+two. This exists because of what the next paragraph does *not* do.
+
+**A progress bar sits in the notification area for the whole run**, the same
+one Dolphin puts there while it copies files: which step is running, which
+package is being unpacked, how far along the whole thing is. A twenty-minute
+run that shows nothing looks indistinguishable from a hung one, and that is
+what gets a machine switched off in the middle of a transaction. See
+[The progress bar](#the-progress-bar).
 
 **Suspend and a normal shutdown are blocked.** The run holds a
 `systemd-inhibit --what=sleep:shutdown --mode=block` lock, so closing the lid or
@@ -170,6 +180,49 @@ On a Btrfs system with `snapper` and `snap-pac` — the CachyOS default — ever
 pacman transaction is bracketed by a pre and post snapshot, so a genuinely
 broken upgrade can still be rolled back with `snapper rollback`.
 
+## How long notifications stay
+
+A message that means the machine still needs you — an update failed, the
+package database is locked, packages had to be held back — **stays until you
+dismiss it**. That kind of message is only worth sending if it is still there
+when you come back to the machine.
+
+Everything else times out on its own, a successful update included. Nothing
+should have to be clicked away for having gone right.
+
+Set per message rather than left to the notification daemon. Daemons do keep
+critical-urgency messages up and the spec asks them to, but that is a *should*,
+it says nothing about the normal-urgency messages here that still need somebody
+to act, and urgency separately controls sound and do-not-disturb bypass — a
+different question. Queued messages delivered at the next login keep the same
+distinction.
+
+## The progress bar
+
+While a run is working, the notification area carries a live entry — headline,
+item count, percentage, and the package currently being unpacked under
+*Details*. It is not a notification but a **job**, the same mechanism Dolphin
+uses for file copies, which is what gets you a bar rather than a line of text.
+
+Two things about how it is put together:
+
+- The desktop ties a job to the D-Bus connection that asked for it, and
+  withdraws the job the moment that connection closes. One-shot bus clients —
+  `gdbus`, `busctl`, `dbus-send` — therefore cannot drive one at all, since
+  every invocation is a fresh connection that closes immediately. So a small
+  helper (`cachy-auto-update-progress`) runs inside each graphical session for
+  the length of the update, holding the connection open and taking instructions
+  on stdin. It needs **python-gobject**; without it there is simply no bar and
+  nothing else changes.
+- The position inside the repository step comes from pacman's own
+  `(120/260) upgrading foo` lines. pacman's other `(n/m)` sequences — checking
+  keys, package integrity, loading files — each count to the same total, so
+  only the transaction verbs are followed; otherwise the bar would reach the
+  end three times before the first package was unpacked.
+
+This is Plasma's job interface. On a desktop that does not implement it the
+helper exits quietly and the ordinary notifications carry on as before.
+
 ## Configuration
 
 `/etc/cachy-auto-update/cachy-auto-update.conf`, one `Key=Value` per line, every
@@ -203,7 +256,7 @@ Two things are deliberately *not* automated:
 
 - **File conflicts** (`exists in filesystem`) — forcing `--overwrite` could
   silently destroy something that was put there on purpose.
-- **Reboots** — you get a notification, never a surprise restart.
+- **Reboots** — `status` tells you one is due, never a surprise restart.
 
 Signature failures trigger one keyring refresh and one retry, since a stale
 keyring blocks everything else until it is fixed.
@@ -226,8 +279,13 @@ sudo systemd-sysusers && sudo systemd-tmpfiles --create
 sudo cachy-auto-update enable
 ```
 
-`make check` runs `bash -n` over everything, `shellcheck` when available, and
-validates the sudoers drop-in with `visudo -c`.
+`make check` runs `bash -n` over every shell file, `py_compile` over the
+progress helper, `shellcheck` when available, and validates the sudoers drop-in
+with `visudo -c`.
+
+Everything is optional at runtime and degrades to doing less rather than
+failing: `pacman-contrib` for `checkupdates`, an AUR helper, `flatpak`, Gear
+Lever, `libnotify` for notifications, and `python-gobject` for the progress bar.
 
 ## Relationship to cachy-update
 

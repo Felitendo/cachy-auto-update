@@ -131,7 +131,6 @@ CAU_SETTINGS=(
 	"NotifyOnStart|bool|yes|Notify when an update starts"
 	"NotifyOnSuccess|bool|yes|Notify after a successful update"
 	"NotifyOnError|bool|yes|Notify when something goes wrong"
-	"NotifyReboot|bool|yes|Notify when a restart is needed"
 	"UpdateInterval|choice:6h 12h 1d 2d 1w|1d|Time between update runs"
 	"SkipWhenGaming|bool|yes|Postpone while a game is running"
 	"RequireAC|bool|no|Only update on mains power"

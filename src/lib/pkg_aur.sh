@@ -126,6 +126,8 @@ cau_aur_update() {
 
 	cau_aur_ready || return 0
 
+	cau_progress_step aur "AUR packages"
+
 	pending="$(cau_aur_pending)"
 	if (( pending == 0 )); then
 		cau_info "No AUR updates pending"
@@ -134,10 +136,15 @@ cau_aur_update() {
 	fi
 
 	cau_info "Updating $pending AUR package(s) with $CAU_AUR_HELPER"
+
+	# The helper builds each package from source with no counter this side of
+	# its output, so the bar sits at the start of the step until it is done.
+	cau_progress_item 0 "$pending"
 	mapfile -t args < <(cau_aur_helper_args)
 
 	if cau_run_logged cau_as_build_user "$CAU_AUR_HELPER" "${args[@]}"; then
 		CAU_AUR_COUNT="$pending"
+		cau_progress_item "$pending"
 		cau_state_clear aur_failures
 		return 0
 	fi

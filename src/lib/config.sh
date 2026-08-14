@@ -130,7 +130,6 @@ cau_config_load() {
 	CFG_NOTIFY_START=no;          cau_config_bool NotifyOnStart        yes && CFG_NOTIFY_START=yes
 	CFG_NOTIFY_SUCCESS=no;        cau_config_bool NotifyOnSuccess      yes && CFG_NOTIFY_SUCCESS=yes
 	CFG_NOTIFY_ERROR=no;          cau_config_bool NotifyOnError        yes && CFG_NOTIFY_ERROR=yes
-	CFG_NOTIFY_REBOOT=no;         cau_config_bool NotifyReboot         yes && CFG_NOTIFY_REBOOT=yes
 
 	CFG_INTERVAL="$(cau_config_get UpdateInterval 1d)"
 	CFG_INTERVAL_SECONDS="$(cau_duration_to_seconds "$CFG_INTERVAL" 86400)"
