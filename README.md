@@ -214,11 +214,19 @@ Two things about how it is put together:
   the length of the update, holding the connection open and taking instructions
   on stdin. It needs **python-gobject**; without it there is simply no bar and
   nothing else changes.
-- The position inside the repository step comes from pacman's own
-  `(120/260) upgrading foo` lines. pacman's other `(n/m)` sequences — checking
-  keys, package integrity, loading files — each count to the same total, so
-  only the transaction verbs are followed; otherwise the bar would reach the
-  end three times before the first package was unpacked.
+- Downloading and unpacking are two separate steps on the bar. On a domestic
+  line the download is the longer of the two, and calling the whole thing
+  "installing" leaves the bar sitting at 4% for six minutes, which reads as a
+  hang rather than as progress.
+- Neither phase carries a counter on an unattended run, so both are counted a
+  line at a time — `foo-1.2-1-x86_64 downloading...` and `upgrading foo...`.
+  The database sync just before prints the same shape (` core downloading...`)
+  with the suffix that would give it away already stripped, so counting starts
+  only after pacman's `:: Retrieving packages...` header. pacman's other
+  `(n/m)` sequences — checking keys, package integrity, loading files — each
+  count to the same total, so only the transaction verbs are followed;
+  otherwise the bar would reach the end three times before the first package
+  was unpacked.
 
 This is Plasma's job interface. On a desktop that does not implement it the
 helper exits quietly and the ordinary notifications carry on as before.

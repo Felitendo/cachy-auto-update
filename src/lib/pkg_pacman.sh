@@ -32,11 +32,34 @@ cau_pacman_flags() {
 # precisely so pacman's output stays parseable.
 CAU_PACMAN_OP_RE='^(\([[:space:]]*[0-9]+/[0-9]+\) )?(upgrading|installing|reinstalling|downgrading|removing) [^[:space:]]+'
 
-# _cau_pacman_progress_watch <logfile>
-# Feeds the desktop's progress bar by watching pacman work.
+# Before any of that, everything has to be fetched, and on a domestic line
+# that is the longer half of the run: two hundred packages take minutes to
+# arrive and seconds to unpack. pacman prints one line per package while it
+# does it,
 #
-# pacman announces each package twice over, in one of two shapes, and which one
-# depends on a flag this program sets itself:
+#    glibc-2.44+r24+g16be1518495f-1-x86_64_v3 downloading...
+#
+# and nothing else - no counter, no total - so the position here is counted the
+# same way the transaction is.
+#
+# The database sync a few lines earlier prints the very same shape (" core
+# downloading..."), and pacman strips the suffix that would tell a database
+# from a package, so the count begins only after the header that separates the
+# two phases.
+CAU_PACMAN_DL_AWK='
+	/^:: Retrieving packages/ { retrieving = 1; next }
+	retrieving && / downloading\.\.\.$/ { n++; name = $1 }
+	END { print n + 0, name }'
+
+# _cau_pacman_progress_watch <logfile>
+# Feeds the desktop's progress bar by watching pacman work, through both of the
+# phases a pacman run has: first everything is fetched, then everything is
+# unpacked. They are two steps on the bar rather than one, because they are two
+# steps to sit through - a run that has been "installing updates" at 4% for six
+# minutes has not hung, it is still downloading, and the bar should say so.
+#
+# In the transaction, pacman announces each package twice over, in one of two
+# shapes, and which one depends on a flag this program sets itself:
 #
 #   upgrading glibc...              with --noprogressbar, i.e. every timer run
 #   ( 12/218) upgrading glibc [##]  with the bar, i.e. an interactive `run`
@@ -60,6 +83,7 @@ CAU_PACMAN_OP_RE='^(\([[:space:]]*[0-9]+/[0-9]+\) )?(upgrading|installing|reinst
 _cau_pacman_progress_watch() {
 	local log="$1"
 	local total="${CAU_PACMAN_COUNT:-0}" announced processed line pkg last=''
+	local phase=download fetched shown=''
 
 	while :; do
 		sleep 1
@@ -69,7 +93,30 @@ _cau_pacman_progress_watch() {
 		[[ $announced =~ ^[0-9]+$ ]] && (( announced > 0 )) && total="$announced"
 
 		line="$(grep -aoE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null | tail -n1)"
-		[[ -n $line ]] || continue
+
+		# Nothing unpacked yet, so this is still the download - or the database
+		# sync ahead of it, which the awk above declines to count.
+		if [[ -z $line ]]; then
+			read -r fetched pkg < <(awk "$CAU_PACMAN_DL_AWK" "$log" 2>/dev/null)
+			[[ $fetched =~ ^[0-9]+$ ]] && (( fetched > 0 )) || continue
+			[[ $fetched != "$shown" ]] || continue
+			shown="$fetched"
+
+			cau_progress_item "$fetched" "$total"
+			# Down to the bare name, as the transaction reports it: the file
+			# pacman names here carries version, release and architecture.
+			cau_progress_detail "Package" "${pkg%-*-*-*}"
+			continue
+		fi
+
+		# The first package being unpacked ends the download step. Its share of
+		# the bar is given up wherever it had got to - packages already in the
+		# cache are fetched in no time at all and never print a line, so the
+		# tally regularly stops short of the total it was promised.
+		if [[ $phase == download ]]; then
+			phase=install
+			cau_progress_step repo "Updating system packages" "$total"
+		fi
 
 		# Nothing new since the last look. Checked before the counting grep
 		# because on a large upgrade this loop spends most of its life here.
@@ -198,7 +245,9 @@ cau_pacman_update() {
 	local log kind
 	local -a flags
 
-	cau_progress_step repo "Updating system packages"
+	# The download comes first and the watcher moves on to the repo step once
+	# pacman starts unpacking.
+	cau_progress_step download "Downloading updates"
 
 	if ! cau_pacman_pending; then
 		cau_info "No repository updates pending"

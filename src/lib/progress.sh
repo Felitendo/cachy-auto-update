@@ -26,11 +26,12 @@ CAU_PROGRESS_FIFOS=()
 CAU_PROGRESS_LOCALES=()
 
 # What each step is worth on the bar. Rough shares of a typical run rather than
-# anything measured: repositories dominate, the cleanup is a rounding error.
+# anything measured: the repositories dominate - fetching them and unpacking
+# them about equally, on a domestic line - and the cleanup is a rounding error.
 # They do not have to add up to 100 - only the steps a given run will actually
 # perform are counted, and the total is normalised against those.
 declare -A CAU_PROGRESS_WEIGHTS=(
-	[repo]=70 [aur]=15 [flatpak]=10 [appimage]=3 [cleanup]=2
+	[download]=30 [repo]=40 [aur]=15 [flatpak]=10 [appimage]=3 [cleanup]=2
 )
 
 CAU_PROGRESS_PLAN=()

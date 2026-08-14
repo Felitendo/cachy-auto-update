@@ -122,10 +122,18 @@ of the update and holds that connection open. It requires _python-gobject_.
 Where that is missing, or on a desktop with no job interface, there is no
 progress entry and nothing else is affected.
 
-The position within the repository step is read from pacman's own
-"(120/260) upgrading foo" output. Its other (n/m) sequences - checking keys,
-package integrity, loading package files - each count up to the same total and
-are deliberately ignored.
+Fetching the packages and unpacking them are two steps rather than one. On a
+domestic line the download is the longer of the two, and a bar that called the
+whole thing "installing" would sit near its beginning for minutes at a time
+looking stuck.
+
+Neither phase gets a counter from pacman on an unattended run, so both are
+counted here, a line at a time: "foo-1.2-1-x86_64 downloading..." for the
+first, "upgrading foo..." for the second. Packages already in the cache are
+never announced, so the download step regularly ends short of its total and
+gives up the rest of its share when unpacking begins. pacman's other (n/m)
+sequences - checking keys, package integrity, loading package files - each
+count up to the same total and are deliberately ignored.
 
 # HOW LONG NOTIFICATIONS STAY
 
