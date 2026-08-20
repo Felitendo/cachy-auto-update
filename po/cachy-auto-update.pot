@@ -258,6 +258,9 @@ msgstr ""
 msgid "Cleaning up after the update"
 msgstr ""
 
+msgid "Log"
+msgstr ""
+
 msgid "Package"
 msgstr ""
 

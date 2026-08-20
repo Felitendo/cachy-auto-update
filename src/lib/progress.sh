@@ -367,6 +367,83 @@ cau_progress_detail() {
 	done
 }
 
+# How many lines of the run log the job entry carries, and how wide each one
+# is allowed to be. Both are display limits rather than arbitrary ones: five
+# lines is about what fits under a notification popup before it starts pushing
+# the buttons off the bottom, and a line long enough to be elided anyway is
+# only costing room in the pipe. Together they also keep one instruction well
+# inside PIPE_BUF, which is what makes the write atomic against the runner
+# writing its own progress down the same pipe.
+CAU_PROGRESS_TAIL_LINES=5
+CAU_PROGRESS_TAIL_COLS=120
+CAU_PROGRESS_TAIL_PID=0
+
+# cau_progress_log <label-msgid> <text>
+# The second description field, holding the last few lines of the run log.
+#
+# The protocol is one instruction per line, so the tail travels tab separated
+# and is put back together on the other side. Tabs inside a log line would
+# split it in two on the way, so they become spaces first - the job view
+# renders either as whitespace, and a line broken in half renders as nonsense.
+cau_progress_log() {
+	local label="$1" text="$2" i fd
+
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+
+	text="${text//$'\t'/ }"
+	text="${text//$'\n'/$'\t'}"
+
+	for i in "${!CAU_PROGRESS_FDS[@]}"; do
+		fd="${CAU_PROGRESS_FDS[$i]}"
+		[[ -n $fd ]] || continue
+		cau_msg_into "${CAU_PROGRESS_LOCALES[$i]}" "$label"
+		printf 'log\t%s\t%s\n' "$CAU_MSG_RESULT" "$text" >&"$fd" 2>/dev/null || true
+	done
+}
+
+# cau_progress_tail_start <logfile> / cau_progress_tail_stop
+# Follows the run log for as long as the update lasts, so expanding "Details"
+# shows what the update is actually doing right now.
+#
+# This is the answer to the part of a run that has no counter and never will:
+# an AUR helper compiling for a quarter of an hour says plenty about what it is
+# up to, none of it countable, and all of it going into a log file nobody is
+# looking at. The percentage says the update is alive; these lines say what it
+# is alive doing.
+#
+# Polled rather than followed with tail -F, for the same reason the pacman
+# watcher polls: only the last few lines are ever displayed, so every line in
+# between is work nobody would see. Re-read whole and compared, which also
+# makes truncation and rotation of the log a non-event.
+cau_progress_tail_start() {
+	local file="$1"
+
+	cau_progress_tail_stop
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+	cau_have tail || return 0
+
+	{
+		local nap last='' now
+		exec {nap}<> <(:)
+		while :; do
+			read -r -t 2 -u "$nap" _ || true
+			now="$(tail -n "$CAU_PROGRESS_TAIL_LINES" "$file" 2>/dev/null \
+				| cut -c "1-${CAU_PROGRESS_TAIL_COLS}")"
+			[[ -n $now && $now != "$last" ]] || continue
+			last="$now"
+			cau_progress_log "Log" "$now"
+		done
+	} &
+	CAU_PROGRESS_TAIL_PID=$!
+}
+
+cau_progress_tail_stop() {
+	(( CAU_PROGRESS_TAIL_PID )) || return 0
+	kill "$CAU_PROGRESS_TAIL_PID" 2>/dev/null
+	wait "$CAU_PROGRESS_TAIL_PID" 2>/dev/null
+	CAU_PROGRESS_TAIL_PID=0
+}
+
 # cau_progress_end [outcome: ok|failed] [failure-msgid]
 # Closes the entry. Must run on every exit path, including a killed run: an
 # entry whose owner merely vanishes is reported by the desktop as "the
@@ -386,9 +463,11 @@ cau_progress_end() {
 	local outcome="${1:-ok}" msgid="${2:-}"
 	local i fd
 
-	# Before the descriptors go: a ticker still running would be writing into
-	# a pipe whose reader is about to be waited on.
+	# Before the descriptors go: anything still running in the background holds
+	# its own copy of them, so the helper would not see the end of its input
+	# until it exited - and it is about to be waited on.
 	cau_progress_creep_stop
+	cau_progress_tail_stop
 
 	# The last step never consumes its own share - nothing reports items for
 	# the cleanup - so the bar would stop a few percent short of the end and

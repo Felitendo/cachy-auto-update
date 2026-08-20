@@ -131,6 +131,13 @@ stuck update. On a domestic line the download is then the longest of the three,
 and a bar that called the whole thing "installing" would sit near its beginning
 for minutes at a time looking stuck.
 
+Expanding "Details" shows the last five lines of the run log as they are
+written, alongside the package currently being worked on. The percentage says
+the update is alive; these lines say what it is alive doing, which matters most
+during the stretches that have nothing countable to report - an AUR package
+being compiled, above all. The job interface carries exactly two description
+fields, so those are the two things shown.
+
 A step that turns out to have no work is dropped from the bar instead of being
 handed its share for nothing. Packages already in the cache are never
 announced, so a run with everything already fetched skips the download step

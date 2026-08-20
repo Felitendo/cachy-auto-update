@@ -192,6 +192,11 @@ progress_steps=(resolve download repo)
 progress_steps+=(cleanup)
 cau_progress_begin "${progress_steps[@]}"
 
+# And carry the run log's last lines along with it, so "Details" shows what the
+# update is doing during the stretches that have nothing to count - an AUR
+# package building for a quarter of an hour, most of all.
+cau_progress_tail_start "$CAU_RUNLOG"
+
 if ! cau_pacman_update; then
 	failed=1
 fi

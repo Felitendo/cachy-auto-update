@@ -259,6 +259,9 @@ msgstr "AppImages werden aktualisiert"
 msgid "Cleaning up after the update"
 msgstr "Aufräumen nach dem Update"
 
+msgid "Log"
+msgstr "Protokoll"
+
 msgid "Package"
 msgstr "Paket"
 

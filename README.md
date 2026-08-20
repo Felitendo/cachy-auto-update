@@ -228,6 +228,14 @@ Two things about how it is put together:
   instead of leaping 30% the moment unpacking starts — and likewise for AUR
   with nothing pending, or a machine with no Flatpaks. The weights only ever
   have to be right about the steps that actually run.
+- **Expanding *Details* shows the run log's last five lines, live.** The
+  percentage says the update is alive; these say what it is alive doing. It
+  matters most where there is nothing to count — an AUR package compiling for
+  a quarter of an hour talks constantly, and all of it used to go into a file
+  nobody was looking at. The job model behind this interface carries exactly
+  two description fields (`descriptionValue1` and `2` — there is no third), so
+  one holds the current package and the other the tail; newlines inside a value
+  do render, which is what makes five lines fit in one field.
 - pacman's output is line-buffered through `stdbuf`. Writing to a log rather
   than a terminal, libc would hand it over in 4 KB blocks instead, and 4 KB of
   `upgrading foo...` is on the order of a hundred and sixty packages arriving
