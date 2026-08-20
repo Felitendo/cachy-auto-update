@@ -214,19 +214,33 @@ Two things about how it is put together:
   the length of the update, holding the connection open and taking instructions
   on stdin. It needs **python-gobject**; without it there is simply no bar and
   nothing else changes.
-- Downloading and unpacking are two separate steps on the bar. On a domestic
-  line the download is the longer of the two, and calling the whole thing
-  "installing" leaves the bar sitting at 4% for six minutes, which reads as a
-  hang rather than as progress.
-- Neither phase carries a counter on an unattended run, so both are counted a
-  line at a time — `foo-1.2-1-x86_64 downloading...` and `upgrading foo...`.
-  The database sync just before prints the same shape (` core downloading...`)
-  with the suffix that would give it away already stripped, so counting starts
-  only after pacman's `:: Retrieving packages...` header. pacman's other
-  `(n/m)` sequences — checking keys, package integrity, loading files — each
-  count to the same total, so only the transaction verbs are followed;
-  otherwise the bar would reach the end three times before the first package
-  was unpacked.
+- Working out the upgrade, downloading it and unpacking it are three separate
+  steps. The first is the one that used to look broken: between
+  `:: Starting full system upgrade...` and the transaction it eventually
+  prepares, pacman prints nothing at all, and on a large backlog that silence
+  runs to minutes. A counter frozen at "0 of 161" reads as a stuck update, so
+  that stretch carries a label and deliberately no counter. On a domestic line
+  the download is then the longest of the three, and calling the whole thing
+  "installing" would leave the bar at 4% for six minutes.
+- A step that turns out to have no work is dropped from the bar rather than
+  handed its share for nothing. Packages already in the cache are never
+  announced, so a run that only has to unpack skips the download step outright
+  instead of leaping 30% the moment unpacking starts — and likewise for AUR
+  with nothing pending, or a machine with no Flatpaks. The weights only ever
+  have to be right about the steps that actually run.
+- pacman's output is line-buffered through `stdbuf`. Writing to a log rather
+  than a terminal, libc would hand it over in 4 KB blocks instead, and 4 KB of
+  `upgrading foo...` is on the order of a hundred and sixty packages arriving
+  at once — which is how a bar comes to sit still and then jump to the end.
+- Neither counted phase gets a counter from pacman on an unattended run, so
+  both are counted a line at a time — `foo-1.2-1-x86_64 downloading...` and
+  `upgrading foo...`. The database sync just before prints the same shape
+  (` core downloading...`) with the suffix that would give it away already
+  stripped, so counting starts only after pacman's `:: Retrieving packages...`
+  header. pacman's other `(n/m)` sequences — checking keys, package integrity,
+  loading files — each count to the same total, so only the transaction verbs
+  are followed; otherwise the bar would reach the end three times before the
+  first package was unpacked.
 
 This is Plasma's job interface. On a desktop that does not implement it the
 helper exits quietly and the ordinary notifications carry on as before.

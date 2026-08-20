@@ -30,8 +30,15 @@ CAU_PROGRESS_LOCALES=()
 # them about equally, on a domestic line - and the cleanup is a rounding error.
 # They do not have to add up to 100 - only the steps a given run will actually
 # perform are counted, and the total is normalised against those.
+#
+# "resolve" is everything pacman does before it has a transaction: syncing the
+# databases and working out what the upgrade actually consists of. It is
+# usually seconds, which is why it is worth so little - but on a large backlog
+# it is minutes, and those minutes used to be spent looking at a bar that had
+# not moved yet.
 declare -A CAU_PROGRESS_WEIGHTS=(
-	[download]=30 [repo]=40 [aur]=15 [flatpak]=10 [appimage]=3 [cleanup]=2
+	[resolve]=10 [download]=30 [repo]=40 [aur]=15 [flatpak]=10 [appimage]=3
+	[cleanup]=2
 )
 
 CAU_PROGRESS_PLAN=()
@@ -133,6 +140,49 @@ cau_progress_active() {
 	(( ${#CAU_PROGRESS_FDS[@]} ))
 }
 
+# cau_progress_drop <step-id...>
+# Takes steps out of the plan and rescales the bar to what is left.
+#
+# Which steps a run will perform is only half known up front. The other half
+# turns up while it runs: nothing to download because every package was already
+# in the cache, no AUR updates pending, no Flatpaks installed. A step like that
+# keeps its whole share of the bar and then hands it over in a single jump the
+# moment the next one starts - which is precisely the stutter this is here to
+# remove. Dropping it hands its share to the steps that do have work instead,
+# so the bar advances at a steady pace rather than leaping across the gaps.
+#
+# It is also what lets the weights above stay rough: they never have to be
+# right about a step that does not run, only about the ones that do.
+#
+# Only ever called for a step that has not started, so nothing already behind
+# the bar is rescaled and the bar does not travel backwards.
+cau_progress_drop() {
+	local drop step
+	local -a kept=()
+
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+
+	for step in "${CAU_PROGRESS_PLAN[@]}"; do
+		for drop in "$@"; do
+			[[ $step == "$drop" ]] && continue 2
+		done
+		kept+=("$step")
+	done
+
+	(( ${#kept[@]} == ${#CAU_PROGRESS_PLAN[@]} )) && return 0
+
+	CAU_PROGRESS_PLAN=("${kept[@]}")
+	CAU_PROGRESS_SCALE=0
+	for step in "${CAU_PROGRESS_PLAN[@]}"; do
+		CAU_PROGRESS_SCALE=$(( CAU_PROGRESS_SCALE + ${CAU_PROGRESS_WEIGHTS[$step]:-0} ))
+	done
+
+	# Nothing left to weigh against would divide by zero further down. Cannot
+	# happen while cleanup is unconditional, but this is cheaper than relying
+	# on that staying true.
+	(( CAU_PROGRESS_SCALE > 0 )) || CAU_PROGRESS_SCALE=1
+}
+
 # cau_progress_step <step-id> <label-msgid> [item-count]
 # Moves on to the next step. The bar jumps to where that step begins, so a step
 # that reported fewer items than it promised still completes rather than
@@ -143,10 +193,16 @@ cau_progress_step() {
 
 	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
 
+	local found=0
 	for step in "${CAU_PROGRESS_PLAN[@]}"; do
-		[[ $step == "$id" ]] && break
+		[[ $step == "$id" ]] && { found=1; break; }
 		base=$(( base + ${CAU_PROGRESS_WEIGHTS[$step]:-0} ))
 	done
+
+	# A step that was dropped for having no work is not a step to move to.
+	# Without this the loop above would fall off the end of the plan and hand
+	# back the sum of every weight, i.e. send the bar straight to 100%.
+	(( found )) || return 0
 
 	CAU_PROGRESS_BASE=$base
 	CAU_PROGRESS_SPAN=${CAU_PROGRESS_WEIGHTS[$id]:-0}
@@ -170,10 +226,38 @@ cau_progress_step() {
 	cau_progress_item 0
 }
 
+# _cau_progress_pct <numerator> <denominator>
+# How far through the current step we are, as a share of its span, turned into
+# one number for the whole run and sent on if it has moved.
+_cau_progress_pct() {
+	local num="$1" den="$2" pct scaled
+
+	if (( den > 0 )); then
+		scaled=$(( CAU_PROGRESS_BASE * 100 + CAU_PROGRESS_SPAN * 100 * num / den ))
+	else
+		scaled=$(( CAU_PROGRESS_BASE * 100 ))
+	fi
+
+	pct=$(( scaled / CAU_PROGRESS_SCALE ))
+	(( pct > 100 )) && pct=100
+
+	# Never backwards. Two honest things can ask for that: dropping a step
+	# rescales the run against a smaller total, and the conflict-recovery loop
+	# restarts pacman - and with it the item tally - from the top. Both are
+	# real, neither is a reason to show somebody a bar that retreats.
+	(( pct < CAU_PROGRESS_SHOWN )) && pct=$CAU_PROGRESS_SHOWN
+
+	# Only when the whole number changes. Percent is the one field the runner
+	# would otherwise rewrite for every package on a 500-package upgrade.
+	(( pct == CAU_PROGRESS_SHOWN )) && return 0
+	CAU_PROGRESS_SHOWN=$pct
+	_cau_progress_line 'percent\t%s' "$pct"
+}
+
 # cau_progress_item <processed> [total]
 # How far through the current step we are.
 cau_progress_item() {
-	local processed="$1" total="${2:-$CAU_PROGRESS_TOTAL}" pct scaled
+	local processed="$1" total="${2:-$CAU_PROGRESS_TOTAL}"
 
 	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
 	[[ $processed =~ ^[0-9]+$ ]] || return 0
@@ -185,19 +269,86 @@ cau_progress_item() {
 			_cau_progress_line 'total\t%s' "$total"
 		fi
 		_cau_progress_line 'done\t%s' "$processed"
-		scaled=$(( CAU_PROGRESS_BASE * 100 + CAU_PROGRESS_SPAN * 100 * processed / total ))
+		_cau_progress_pct "$processed" "$total"
 	else
-		scaled=$(( CAU_PROGRESS_BASE * 100 ))
+		_cau_progress_pct 0 0
 	fi
+}
 
-	pct=$(( scaled / CAU_PROGRESS_SCALE ))
-	(( pct > 100 )) && pct=100
+# cau_progress_creep <seconds-elapsed>
+# Moves the bar through a step whose length cannot be known in advance.
+#
+# Some of a run has no counter to offer and never will. pacman prints nothing
+# whatsoever between "starting full system upgrade" and the transaction it
+# eventually prepares; an AUR helper compiling a package prints plenty, none of
+# it countable. On a large backlog either is minutes. There is no honest number
+# to show for that - but a bar that has not moved since it appeared is read as
+# a hang, and somebody who reads it that way reaches for the power button in
+# the middle of an update. That is the failure this is here to prevent.
+#
+# So it creeps, along a curve that approaches the end of the step without ever
+# reaching it: half the step's share after HALFLIFE seconds, three quarters
+# after three times that, the whole of it never. Nothing is claimed that is not
+# known - the item counter stays empty throughout, which is the field that
+# would be lying if it moved - and the step still finishes the instant real
+# work reports in, because every real report is further along than the creep.
+#
+# Confined to the step's own span, so a creep can never overtake the step that
+# comes after it however long it is left running.
+CAU_PROGRESS_CREEP_HALFLIFE=45
 
-	# Only when the whole number changes. Percent is the one field the runner
-	# would otherwise rewrite for every package on a 500-package upgrade.
-	(( pct == CAU_PROGRESS_SHOWN )) && return 0
-	CAU_PROGRESS_SHOWN=$pct
-	_cau_progress_line 'percent\t%s' "$pct"
+cau_progress_creep() {
+	local elapsed="$1"
+
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+	[[ $elapsed =~ ^[0-9]+$ ]] || return 0
+
+	_cau_progress_pct "$elapsed" $(( elapsed + CAU_PROGRESS_CREEP_HALFLIFE ))
+}
+
+# cau_progress_creep_start / cau_progress_creep_stop
+# The same, for a step that blocks in one long call instead of polling: the
+# ticker runs alongside it and is stopped when it returns. Only one at a time,
+# and starting a second one replaces the first.
+CAU_PROGRESS_CREEP_PID=0
+CAU_PROGRESS_CREEP_T0=0
+
+cau_progress_creep_start() {
+	cau_progress_creep_stop
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+
+	CAU_PROGRESS_CREEP_T0=$SECONDS
+	local t0=$SECONDS
+	{
+		# Waiting without forking a sleep every two seconds, for the same
+		# reason cau_progress_begin opens its fifo read-write: a pipe held open
+		# at both ends never reports end-of-file, so a timed read on it blocks
+		# for exactly the timeout and nothing else. A forked sleep would also
+		# survive the kill below - it is a child of this subshell, not this
+		# subshell - and inherit the fifo's write end, which would keep the
+		# helper from seeing the end of its input until the sleep ran out.
+		local nap
+		exec {nap}<> <(:)
+		while :; do
+			read -r -t 2 -u "$nap" _ || true
+			cau_progress_creep $(( SECONDS - t0 ))
+		done
+	} &
+	CAU_PROGRESS_CREEP_PID=$!
+}
+
+cau_progress_creep_stop() {
+	(( CAU_PROGRESS_CREEP_PID )) || return 0
+	kill "$CAU_PROGRESS_CREEP_PID" 2>/dev/null
+	wait "$CAU_PROGRESS_CREEP_PID" 2>/dev/null
+	CAU_PROGRESS_CREEP_PID=0
+
+	# The ticker moved the bar from inside a subshell, so this side never saw
+	# it happen and still believes the bar is where it was left. Catching up
+	# costs one recomputation - the curve is a function of elapsed time and
+	# nothing else - and without it the next ordinary report from here would be
+	# measured against a stale percentage and send the bar backwards.
+	cau_progress_creep $(( SECONDS - CAU_PROGRESS_CREEP_T0 ))
 }
 
 # cau_progress_detail <label-msgid> <value>
@@ -234,6 +385,10 @@ cau_progress_detail() {
 cau_progress_end() {
 	local outcome="${1:-ok}" msgid="${2:-}"
 	local i fd
+
+	# Before the descriptors go: a ticker still running would be writing into
+	# a pipe whose reader is about to be waited on.
+	cau_progress_creep_stop
 
 	# The last step never consumes its own share - nothing reports items for
 	# the cleanup - so the bar would stop a few percent short of the end and

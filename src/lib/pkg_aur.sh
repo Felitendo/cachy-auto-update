@@ -124,7 +124,9 @@ cau_aur_update() {
 	local pending failures
 	local -a args
 
-	cau_aur_ready || return 0
+	# No helper, no base-devel, no bar: a step that cannot run should not be
+	# holding a share of it.
+	cau_aur_ready || { cau_progress_drop aur; return 0; }
 
 	cau_progress_step aur "Updating AUR packages"
 
@@ -132,23 +134,30 @@ cau_aur_update() {
 	if (( pending == 0 )); then
 		cau_info "No AUR updates pending"
 		cau_state_clear aur_failures
+		cau_progress_drop aur
 		return 0
 	fi
 
 	cau_info "Updating $pending AUR package(s) with $CAU_AUR_HELPER"
 
-	# The helper builds each package from source with no counter this side of
-	# its output, so the bar sits at the start of the step until it is done.
+	# The helper builds each package from source and prints plenty about it,
+	# none of it countable from this side. A single large package can take ten
+	# minutes, so the bar creeps through the step rather than sitting at its
+	# start for all of them; the item count stays where it is, because that is
+	# the number that would be lying if it moved.
 	cau_progress_item 0 "$pending"
 	mapfile -t args < <(cau_aur_helper_args)
+	cau_progress_creep_start
 
 	if cau_run_logged cau_as_build_user "$CAU_AUR_HELPER" "${args[@]}"; then
+		cau_progress_creep_stop
 		CAU_AUR_COUNT="$pending"
 		cau_progress_item "$pending"
 		cau_state_clear aur_failures
 		return 0
 	fi
 
+	cau_progress_creep_stop
 	CAU_AUR_COUNT=0
 	failures="$(cau_state_read aur_failures 0)"
 	[[ $failures =~ ^[0-9]+$ ]] || failures=0

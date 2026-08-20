@@ -43,6 +43,26 @@ cau_appimage_update() {
 	local user uid count rc=0
 	local -a cmd
 
+	# Is there a Gear Lever on this machine at all? Asked before the step is
+	# announced rather than discovered inside the loop: on a machine without
+	# one - the common case, it is an optional dependency - a step that exists
+	# only to hand its share of the bar straight to the next one is a jump the
+	# bar does not need. Stops at the first user who has it, so the extra probe
+	# costs anything only in the case it is there to remove.
+	local found=0
+	while read -r user uid; do
+		[[ -n $user ]] || continue
+		if _cau_gearlever_cmd "$user" "$uid" > /dev/null; then
+			found=1
+			break
+		fi
+	done < <(cau_active_session_users)
+
+	if (( ! found )); then
+		cau_progress_drop appimage
+		return 0
+	fi
+
 	cau_progress_step appimage "Updating AppImages"
 
 	while read -r user uid; do

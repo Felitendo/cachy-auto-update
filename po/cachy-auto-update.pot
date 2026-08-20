@@ -234,6 +234,12 @@ msgstr ""
 #. looking for it - it appears next to whatever they were doing - so each one
 #. says outright that this is an update running, rather than naming the kind of
 #. package on its own.
+msgid "Checking for updates"
+msgstr ""
+
+msgid "Preparing the update"
+msgstr ""
+
 msgid "Downloading updates"
 msgstr ""
 

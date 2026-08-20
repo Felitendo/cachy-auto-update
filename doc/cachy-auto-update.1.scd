@@ -122,18 +122,29 @@ of the update and holds that connection open. It requires _python-gobject_.
 Where that is missing, or on a desktop with no job interface, there is no
 progress entry and nothing else is affected.
 
-Fetching the packages and unpacking them are two steps rather than one. On a
-domestic line the download is the longer of the two, and a bar that called the
-whole thing "installing" would sit near its beginning for minutes at a time
-looking stuck.
+Working out the upgrade, fetching it and unpacking it are three steps rather
+than one. Between "Starting full system upgrade" and the transaction it
+eventually prepares, pacman prints nothing at all, and on a large backlog that
+silence runs to minutes; that stretch therefore carries a label of its own and
+deliberately no item count, because a counter frozen at "0 of 161" reads as a
+stuck update. On a domestic line the download is then the longest of the three,
+and a bar that called the whole thing "installing" would sit near its beginning
+for minutes at a time looking stuck.
 
-Neither phase gets a counter from pacman on an unattended run, so both are
-counted here, a line at a time: "foo-1.2-1-x86_64 downloading..." for the
-first, "upgrading foo..." for the second. Packages already in the cache are
-never announced, so the download step regularly ends short of its total and
-gives up the rest of its share when unpacking begins. pacman's other (n/m)
-sequences - checking keys, package integrity, loading package files - each
-count up to the same total and are deliberately ignored.
+A step that turns out to have no work is dropped from the bar instead of being
+handed its share for nothing. Packages already in the cache are never
+announced, so a run with everything already fetched skips the download step
+outright rather than jumping when unpacking starts; the same applies to AUR
+with nothing pending, or a machine with no Flatpaks installed.
+
+Neither counted phase gets a counter from pacman on an unattended run, so both
+are counted here, a line at a time: "foo-1.2-1-x86_64 downloading..." for the
+first, "upgrading foo..." for the second. pacman's output is line-buffered
+through *stdbuf*(1) so those lines arrive as they happen - writing to a log
+rather than a terminal, libc would otherwise release them in 4KB blocks, around
+a hundred and sixty packages at a time. pacman's other (n/m) sequences -
+checking keys, package integrity, loading package files - each count up to the
+same total and are deliberately ignored.
 
 # HOW LONG NOTIFICATIONS STAY
 

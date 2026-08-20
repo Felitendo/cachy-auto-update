@@ -185,7 +185,7 @@ failed=0
 # Open the desktop's progress bar, told up front which steps this run will
 # perform. Only those count towards the bar, so a machine with no Flatpaks
 # does not sit at 85% for the last second of the run.
-progress_steps=(download repo)
+progress_steps=(resolve download repo)
 [[ $CFG_AUR == yes ]]      && progress_steps+=(aur)
 [[ $CFG_FLATPAK == yes ]]  && progress_steps+=(flatpak)
 [[ $CFG_APPIMAGE == yes ]] && progress_steps+=(appimage)

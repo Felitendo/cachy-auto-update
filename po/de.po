@@ -235,6 +235,12 @@ msgstr "Ohne Befehl wird ein interaktives Menü angezeigt."
 #. looking for it - it appears next to whatever they were doing - so each one
 #. says outright that this is an update running, rather than naming the kind of
 #. package on its own.
+msgid "Checking for updates"
+msgstr "Nach Updates wird gesucht"
+
+msgid "Preparing the update"
+msgstr "Update wird vorbereitet"
+
 msgid "Downloading updates"
 msgstr "Updates werden heruntergeladen"
 

@@ -26,21 +26,31 @@ cau_flatpak_pending_system() {
 cau_flatpak_update() {
 	local rc=0 pending user uid home count
 
-	cau_have flatpak || return 0
+	cau_have flatpak || { cau_progress_drop flatpak; return 0; }
 
 	cau_progress_step flatpak "Updating Flatpak apps"
 
-	# refresh appstream metadata first so remote-ls sees current versions
+	# refresh appstream metadata first so remote-ls sees current versions.
+	# Nothing is countable until that has finished, so the bar creeps rather
+	# than waiting at the start of the step for it.
+	cau_progress_creep_start
 	cau_run_logged flatpak update --appstream --system --noninteractive || true
+	cau_progress_creep_stop
 
 	pending="$(cau_flatpak_pending_system)"
 	if (( pending > 0 )); then
 		cau_info "Updating $pending system Flatpak(s)"
 		cau_progress_item 0 "$pending"
+		# Started after the count above and stopped before the one below, so the
+		# only reports this side makes while a ticker is running are further
+		# along than the ticker ever gets.
+		cau_progress_creep_start
 		if cau_run_logged flatpak update --system --noninteractive --assumeyes; then
+			cau_progress_creep_stop
 			CAU_FLATPAK_COUNT=$(( CAU_FLATPAK_COUNT + pending ))
 			cau_progress_item "$pending"
 		else
+			cau_progress_creep_stop
 			cau_warn "System Flatpak update failed"
 			rc=1
 		fi

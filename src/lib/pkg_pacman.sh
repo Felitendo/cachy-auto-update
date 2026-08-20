@@ -52,11 +52,18 @@ CAU_PACMAN_DL_AWK='
 	END { print n + 0, name }'
 
 # _cau_pacman_progress_watch <logfile>
-# Feeds the desktop's progress bar by watching pacman work, through both of the
-# phases a pacman run has: first everything is fetched, then everything is
-# unpacked. They are two steps on the bar rather than one, because they are two
-# steps to sit through - a run that has been "installing updates" at 4% for six
-# minutes has not hung, it is still downloading, and the bar should say so.
+# Feeds the desktop's progress bar by watching pacman work, through the three
+# phases a pacman run has: first it works out what the upgrade consists of,
+# then everything is fetched, then everything is unpacked. Three steps on the
+# bar rather than one, because they are three stretches to sit through - and
+# each one is silent in its own way.
+#
+# The first is the one that used to look like a hang. Between "starting full
+# system upgrade" and the transaction it eventually prepares, pacman says
+# nothing whatsoever, and on a large backlog that silence is minutes long. The
+# only honest thing to show there is a label and no counter at all: a tally
+# frozen at "0 of 161" reads as a stuck update, where "Preparing the update"
+# with no number reads as what it actually is.
 #
 # In the transaction, pacman announces each package twice over, in one of two
 # shapes, and which one depends on a flag this program sets itself:
@@ -83,7 +90,8 @@ CAU_PACMAN_DL_AWK='
 _cau_pacman_progress_watch() {
 	local log="$1"
 	local total="${CAU_PACMAN_COUNT:-0}" announced processed line pkg last=''
-	local phase=download fetched shown=''
+	local phase=resolve fetched shown='' labelled=''
+	local t0=$SECONDS
 
 	while :; do
 		sleep 1
@@ -94,49 +102,73 @@ _cau_pacman_progress_watch() {
 
 		line="$(grep -aoE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null | tail -n1)"
 
-		# Nothing unpacked yet, so this is still the download - or the database
-		# sync ahead of it, which the awk above declines to count.
-		if [[ -z $line ]]; then
+		if [[ -n $line ]]; then
+			# Unpacking has started, so whatever came before it is over. If
+			# nothing was ever retrieved - every package already sitting in the
+			# cache, which is the ordinary state of affairs after a run that was
+			# interrupted once already - then the download step never happened,
+			# and it is dropped rather than handed its whole share of the bar in
+			# exchange for no work at all.
+			if [[ $phase != install ]]; then
+				[[ $phase == download ]] || cau_progress_drop download
+				phase=install
+				cau_progress_step repo "Updating system packages" "$total"
+			fi
+
+			# Nothing new since the last look. Checked before the counting grep
+			# because on a large upgrade this loop spends most of its life here.
+			[[ $line != "$last" ]] || continue
+			last="$line"
+
+			processed="$(grep -acE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null)"
+			[[ $processed =~ ^[0-9]+$ ]] || continue
+
+			# Where pacman does carry a counter, believe it over the tally: it
+			# is the same number, but it also knows the true total.
+			if [[ $line =~ ^\([[:space:]]*([0-9]+)/([0-9]+)\) ]]; then
+				processed="${BASH_REMATCH[1]}"
+				total="${BASH_REMATCH[2]}"
+			fi
+
+			cau_progress_item "$processed" "$total"
+
+			pkg="${line##* }"
+			cau_progress_detail "Package" "${pkg%...}"
+			continue
+		fi
+
+		# Fetching. The header is what tells this apart from the database sync
+		# a few lines earlier, which prints the very same shape.
+		if grep -qa '^:: Retrieving packages' "$log" 2>/dev/null; then
+			if [[ $phase == resolve ]]; then
+				phase=download
+				cau_progress_step download "Downloading updates" "$total"
+			fi
+
 			read -r fetched pkg < <(awk "$CAU_PACMAN_DL_AWK" "$log" 2>/dev/null)
-			[[ $fetched =~ ^[0-9]+$ ]] && (( fetched > 0 )) || continue
+			[[ $fetched =~ ^[0-9]+$ ]] || continue
 			[[ $fetched != "$shown" ]] || continue
 			shown="$fetched"
 
 			cau_progress_item "$fetched" "$total"
 			# Down to the bare name, as the transaction reports it: the file
 			# pacman names here carries version, release and architecture.
-			cau_progress_detail "Package" "${pkg%-*-*-*}"
+			[[ -n $pkg ]] && cau_progress_detail "Package" "${pkg%-*-*-*}"
 			continue
 		fi
 
-		# The first package being unpacked ends the download step. Its share of
-		# the bar is given up wherever it had got to - packages already in the
-		# cache are fetched in no time at all and never print a line, so the
-		# tally regularly stops short of the total it was promised.
-		if [[ $phase == download ]]; then
-			phase=install
-			cau_progress_step repo "Updating system packages" "$total"
+		# Still resolving. pacman does mark the point where it stops syncing
+		# databases and starts working out the upgrade, and that is the half
+		# worth naming, because it is the half that takes the minutes.
+		if [[ $phase == resolve && $labelled != upgrade ]] \
+			&& grep -qa '^:: Starting full system upgrade' "$log" 2>/dev/null; then
+			labelled=upgrade
+			cau_progress_step resolve "Preparing the update"
 		fi
 
-		# Nothing new since the last look. Checked before the counting grep
-		# because on a large upgrade this loop spends most of its life here.
-		[[ $line != "$last" ]] || continue
-		last="$line"
-
-		processed="$(grep -acE "$CAU_PACMAN_OP_RE" "$log" 2>/dev/null)"
-		[[ $processed =~ ^[0-9]+$ ]] || continue
-
-		# Where pacman does carry a counter, believe it over the tally: it is
-		# the same number, but it also knows the true total.
-		if [[ $line =~ ^\([[:space:]]*([0-9]+)/([0-9]+)\) ]]; then
-			processed="${BASH_REMATCH[1]}"
-			total="${BASH_REMATCH[2]}"
-		fi
-
-		cau_progress_item "$processed" "$total"
-
-		pkg="${line##* }"
-		cau_progress_detail "Package" "${pkg%...}"
+		# Nothing countable happens in here at all, so the bar creeps instead.
+		# This is the stretch that used to look like a hung update.
+		cau_progress_creep $(( SECONDS - t0 ))
 	done
 }
 
@@ -156,11 +188,21 @@ _cau_pacman_exec() {
 		watcher=$!
 	fi
 
+	# Line-buffered on purpose. pacman writes to a file or through a pipe here,
+	# never to a terminal, so libc buffers it in 4KB blocks - and 4KB of
+	# "upgrading foo..." is on the order of a hundred and sixty packages. The
+	# watcher would see nothing at all, then a hundred and sixty lines at once,
+	# which is exactly how a bar comes to sit still and then leap to the end.
+	# Guarded rather than assumed: without coreutils there is no bar to feed
+	# either, but there is still an update to run.
+	local -a buffered=()
+	cau_have stdbuf && buffered=(stdbuf -oL)
+
 	if [[ -n $CAU_INTERACTIVE ]]; then
-		pacman "$@" 2>&1 | tee "$log"
+		"${buffered[@]}" pacman "$@" 2>&1 | tee "$log"
 		rc="${PIPESTATUS[0]}"
 	else
-		pacman "$@" > "$log" 2>&1
+		"${buffered[@]}" pacman "$@" > "$log" 2>&1
 		rc=$?
 	fi
 
@@ -245,12 +287,18 @@ cau_pacman_update() {
 	local log kind
 	local -a flags
 
-	# The download comes first and the watcher moves on to the repo step once
-	# pacman starts unpacking.
-	cau_progress_step download "Downloading updates"
+	# checkupdates goes first, against its own private database, and the bar
+	# says so rather than naming a step that has not begun. The watcher takes
+	# over from here and moves on to the download and repo steps as pacman
+	# actually reaches them.
+	cau_progress_step resolve "Checking for updates"
 
 	if ! cau_pacman_pending; then
 		cau_info "No repository updates pending"
+		# Neither of the two steps this would have led to is going to happen,
+		# so the rest of the run gets their share of the bar instead of
+		# watching it jump 70% the moment Flatpaks start.
+		cau_progress_drop download repo
 		return 0
 	fi
 
@@ -258,7 +306,10 @@ cau_pacman_update() {
 		CAU_PACMAN_COUNT="$(grep -c . <<< "$CAU_PACMAN_PENDING")"
 		[[ $CAU_PACMAN_COUNT =~ ^[0-9]+$ ]] || CAU_PACMAN_COUNT=0
 		cau_info "Updating $CAU_PACMAN_COUNT repository package(s)"
-		cau_progress_item 0 "$CAU_PACMAN_COUNT"
+		# Deliberately no item count yet. Until pacman has prepared a
+		# transaction there is nothing being worked through, and "0 of 161"
+		# against a bar that cannot move for the next few minutes is the exact
+		# impression the resolve step exists to avoid.
 	else
 		# checkupdates is unavailable, so the list is unknown and pacman is
 		# asked to work it out itself.
@@ -291,6 +342,13 @@ cau_pacman_update() {
 
 	while true; do
 		if _cau_pacman_exec "$log" -Syu "${flags[@]}" "${extra[@]}"; then
+			# The watcher decided the same thing in a subshell, so a step it
+			# dropped is still in the plan out here. Same question, same answer,
+			# and the two copies agree on what the rest of the run is scaled
+			# against. Only on the way out: a failed attempt is about to be
+			# retried, and that retry may well download after all.
+			grep -qa '^:: Retrieving packages' "$log" 2>/dev/null \
+				|| cau_progress_drop download
 			cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
 			grep -E '^(removing|replacing) ' "$log" 2>/dev/null \
 				| while read -r line; do cau_info "  $line"; done
