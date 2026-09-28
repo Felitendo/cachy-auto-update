@@ -2,6 +2,12 @@
 
 What each release brings, newest first. The [GitHub releases](https://github.com/LoonixTools/cachy-auto-update/releases) add every commit that went into it.
 
+## v1.3.2
+
+_2026-09-28_
+
+A small patch. With **Notify when an update starts** turned off, the progress bar no longer pops up when an update starts either.
+
 ## v1.3.1
 
 _2026-09-24_
