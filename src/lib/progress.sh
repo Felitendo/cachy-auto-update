@@ -95,6 +95,8 @@ cau_progress_begin() {
 	(( CAU_PROGRESS_SCALE > 0 )) || return 0
 
 	[[ $CFG_NOTIFICATIONS == yes ]] || return 0
+	# The desktop pops the bar up as it opens, which reads as a start notice.
+	[[ $CFG_NOTIFY_START == yes ]] || return 0
 	[[ -x $CAU_PROGRESS_HELPER ]] || return 0
 	mkdir -p "$CAU_RUNDIR" 2>/dev/null || return 0
 

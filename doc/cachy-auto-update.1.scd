@@ -114,7 +114,8 @@ entry: the step being performed, how many items it has got through, an overall
 percentage, and the package currently being unpacked under "Details". This is a
 job in the sense of *org.kde.JobViewServer*, the same mechanism a file manager
 uses while copying, rather than a notification. That is what makes it a bar
-instead of a line of text.
+instead of a line of text. The desktop pops it up as it opens, so it follows
+_NotifyOnStart_ and is not shown when that is off.
 
 The desktop withdraws a job as soon as the D-Bus connection that requested it
 closes, so a helper process runs inside each graphical session for the duration
