@@ -100,6 +100,11 @@ cau_progress_begin() {
 	[[ -x $CAU_PROGRESS_HELPER ]] || return 0
 	mkdir -p "$CAU_RUNDIR" 2>/dev/null || return 0
 
+	# Where the helpers report clicks on Cancel and Pause. Without it they do
+	# not offer either button.
+	local -a controls=()
+	cau_control_open && controls=(--controls)
+
 	while read -r user uid; do
 		[[ -n $user ]] || continue
 
@@ -115,7 +120,12 @@ cau_progress_begin() {
 		mkfifo -m 0600 "$fifo" 2>/dev/null || continue
 		chown "$uid" "$fifo" 2>/dev/null || true
 
-		cau_as_user "$user" "$uid" "$CAU_PROGRESS_HELPER" < "$fifo" > /dev/null 2>&1 &
+		if [[ -n $CAU_CONTROL_FD ]]; then
+			cau_as_user "$user" "$uid" "$CAU_PROGRESS_HELPER" "${controls[@]}" \
+				< "$fifo" >&"$CAU_CONTROL_FD" 2>/dev/null &
+		else
+			cau_as_user "$user" "$uid" "$CAU_PROGRESS_HELPER" < "$fifo" > /dev/null 2>&1 &
+		fi
 		pid=$!
 
 		# Read-write deliberately. Opening the writing end of a fifo blocks
@@ -133,6 +143,12 @@ cau_progress_begin() {
 		CAU_PROGRESS_FIFOS+=("$fifo")
 		CAU_PROGRESS_LOCALES+=("$(cau_user_locale "$user" "$uid")")
 	done < <(cau_active_session_users)
+
+	if (( ${#CAU_PROGRESS_FDS[@]} )); then
+		cau_control_start
+	else
+		cau_control_stop
+	fi
 }
 
 # cau_progress_active
@@ -369,6 +385,29 @@ cau_progress_detail() {
 	done
 }
 
+# cau_progress_suspended <0|1>
+# Shows the run as paused, or as running again.
+cau_progress_suspended() {
+	_cau_progress_line 'suspended\t%s' "$1"
+}
+
+# cau_progress_note <label-msgid>
+# A line shown instead of the step's label until the run pauses. Empty clears
+# it.
+cau_progress_note() {
+	local msgid="$1" i fd
+
+	(( ${#CAU_PROGRESS_FDS[@]} )) || return 0
+
+	for i in "${!CAU_PROGRESS_FDS[@]}"; do
+		fd="${CAU_PROGRESS_FDS[$i]}"
+		[[ -n $fd ]] || continue
+		CAU_MSG_RESULT=''
+		[[ -n $msgid ]] && cau_msg_into "${CAU_PROGRESS_LOCALES[$i]}" "$msgid"
+		printf 'note\t%s\n' "$CAU_MSG_RESULT" >&"$fd" 2>/dev/null || true
+	done
+}
+
 # How many lines of the run log the job entry carries, and how wide each one
 # is allowed to be. Both are display limits rather than arbitrary ones: five
 # lines is about what fits under a notification popup before it starts pushing
@@ -446,7 +485,7 @@ cau_progress_tail_stop() {
 	CAU_PROGRESS_TAIL_PID=0
 }
 
-# cau_progress_end [outcome: ok|failed] [failure-msgid]
+# cau_progress_end [outcome: ok|failed|cancelled] [failure-msgid]
 # Closes the entry. Must run on every exit path, including a killed run: an
 # entry whose owner merely vanishes is reported by the desktop as "the
 # application closed unexpectedly", which would end every update with a failure
@@ -455,6 +494,7 @@ cau_progress_tail_stop() {
 #   ok             the bar fills and the entry goes away
 #   failed         the entry goes away from wherever the bar had got to
 #   failed <msgid> and the desktop labels it as failed, with that text
+#   cancelled      the entry goes away without a word, the click said it all
 #
 # The distinction between the last two is which message the user ends up with.
 # An ordinary failure already sends a notification that stays until dismissed,
@@ -470,6 +510,7 @@ cau_progress_end() {
 	# until it exited. And it is about to be waited on.
 	cau_progress_creep_stop
 	cau_progress_tail_stop
+	cau_control_stop
 
 	# The last step never consumes its own share (nothing reports items for
 	# the cleanup), so the bar would stop a few percent short of the end and
@@ -481,10 +522,13 @@ cau_progress_end() {
 		fd="${CAU_PROGRESS_FDS[$i]}"
 		[[ -n $fd ]] || continue
 
-		CAU_MSG_RESULT=''
-		[[ -n $msgid ]] && cau_msg_into "${CAU_PROGRESS_LOCALES[$i]}" "$msgid"
-
-		printf 'end\t%s\n' "$CAU_MSG_RESULT" >&"$fd" 2>/dev/null || true
+		if [[ $outcome == cancelled ]]; then
+			printf 'killed\n' >&"$fd" 2>/dev/null || true
+		else
+			CAU_MSG_RESULT=''
+			[[ -n $msgid ]] && cau_msg_into "${CAU_PROGRESS_LOCALES[$i]}" "$msgid"
+			printf 'end\t%s\n' "$CAU_MSG_RESULT" >&"$fd" 2>/dev/null || true
+		fi
 		exec {fd}>&-
 	done
 

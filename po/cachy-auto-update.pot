@@ -400,3 +400,24 @@ msgstr ""
 #. Settings labels
 msgid "Clean the AUR build caches"
 msgstr ""
+
+msgid "The last run was cancelled. It will run again later."
+msgstr ""
+
+#. Cancel and pause
+msgid "Stopping the update"
+msgstr ""
+
+msgid ""
+"The current step is finished first. Please leave the computer switched on "
+"until then."
+msgstr ""
+
+msgid "Pausing once the current step is done"
+msgstr ""
+
+msgid "Update stopped"
+msgstr ""
+
+msgid "You can switch off the computer now. The update will run again later."
+msgstr ""

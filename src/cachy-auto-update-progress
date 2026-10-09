@@ -7,12 +7,20 @@
 # progress entry the desktop shows while Dolphin copies files:
 #
 #   info<TAB>text          headline, already translated by the caller
+#   note<TAB>text          shown instead of the headline for a while, empty clears
 #   detail<TAB>name<TAB>value  a labelled line under "Details"
 #   log<TAB>name<TAB>line<TAB>line...  the run log's last lines, one per field
 #   total<TAB>n            how many items this step has
 #   done<TAB>n             how many of them are finished
 #   percent<TAB>n          overall progress, 0-100
+#   suspended<TAB>0|1      the run is paused, or running again
 #   end[<TAB>message]      finish; a message marks the job as failed
+#   killed                 finish after a cancel, without any message
+#
+# With --controls the entry gets a Cancel and a Pause button. A click is
+# written to stdout as one line, "cancel", "pause" or "resume", for the runner
+# to act on. Without it there are no buttons: a button that does nothing is
+# worse than no button.
 #
 # Why a separate process at all: the desktop ties the progress entry to the
 # D-Bus connection that asked for it and withdraws the entry the moment that
@@ -24,6 +32,7 @@
 # Copyright (C) 2026 Felitendo
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import os
 import sys
 
 try:
@@ -37,9 +46,24 @@ except ImportError:
         pass
     sys.exit(0)
 
+try:
+    from gi.repository import GLibUnix
+    fd_add = GLibUnix.fd_add_full
+except ImportError:
+    fd_add = GLib.unix_fd_add_full
+
 JOB_SERVICE = "org.kde.JobViewServer"
 JOB_PATH = "/JobViewServer"
 DESKTOP_ENTRY = "cachy-auto-update"
+
+# KJob::Killable | KJob::Suspendable
+CAPABILITIES = 1 | 2
+
+CLICKS = {
+    "cancelRequested": b"cancel\n",
+    "suspendRequested": b"pause\n",
+    "resumeRequested": b"resume\n",
+}
 
 
 class Job:
@@ -49,16 +73,30 @@ class Job:
         self.bus = None
         self.path = None
 
-    def open(self):
+    def open(self, controls):
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         reply = self.bus.call_sync(
             JOB_SERVICE, JOB_PATH, "org.kde.JobViewServerV2", "requestView",
-            # capabilities 0: no cancel and no pause button. Neither can be
-            # honoured, because pacman's commit phase is not interruptible. A
-            # button that does nothing is worse than no button.
-            GLib.Variant("(sia{sv})", (DESKTOP_ENTRY, 0, {})),
+            GLib.Variant("(sia{sv})",
+                         (DESKTOP_ENTRY, CAPABILITIES if controls else 0, {})),
             GLib.VariantType("(o)"), Gio.DBusCallFlags.NONE, -1, None)
         self.path = reply.unpack()[0]
+
+        if controls:
+            self.bus.signal_subscribe(
+                None, "org.kde.JobViewV2", None, self.path, None,
+                Gio.DBusSignalFlags.NONE, self.clicked)
+
+    @staticmethod
+    def clicked(_bus, _sender, _path, _iface, member, _params):
+        line = CLICKS.get(member)
+        if line is None:
+            return
+        try:
+            os.write(1, line)
+        except OSError:
+            # The runner is gone. Nobody left to tell.
+            pass
 
     def call(self, method, variant):
         if self.path is None:
@@ -69,10 +107,11 @@ class Job:
                 None, Gio.DBusCallFlags.NONE, -1, None)
         except GLib.Error:
             # The desktop went away mid-update (a logout, or a plasmashell
-            # restart). The update carries on without a bar.
+            # restart), or dropped the entry after a click on Cancel. The
+            # update carries on without a bar.
             self.path = None
 
-    def close(self, message=""):
+    def close(self, message="", code=None):
         # Always terminate explicitly. A job whose owner simply disappears is
         # reported by the desktop as "the application closed unexpectedly",
         # which would turn every successful update into a failure notice.
@@ -85,58 +124,138 @@ class Job:
         # 100 is KJob::UserDefinedError, and the value does matter: 1 is
         # KJob::KilledJobError, which the desktop discards without showing
         # anything on the grounds that whoever killed the job already knows.
-        if message:
-            self.call("setError", GLib.Variant("(u)", (100,)))
+        # That is exactly what a cancelled run wants.
+        if code is None and message:
+            code = 100
+        if code is not None:
+            self.call("setError", GLib.Variant("(u)", (code,)))
         self.call("terminate", GLib.Variant("(s)", (message,)))
         self.path = None
 
 
+class Entry:
+    """What the entry shows. While paused, progress is held back and shown
+    on resume, so a bar that is not moving does not creep along."""
+
+    def __init__(self, job):
+        self.job = job
+        self.label = ""
+        self.note = ""
+        self.paused = False
+        self.held = {}
+
+    def show(self):
+        self.job.call("setInfoMessage",
+                      GLib.Variant("(s)", (self.note or self.label,)))
+
+    def progress(self, method, variant):
+        if self.paused:
+            self.held[method] = variant
+        else:
+            self.job.call(method, variant)
+
+    def handle(self, fields):
+        """Applies one instruction. False means the entry is finished."""
+        cmd = fields[0]
+        arg = fields[1] if len(fields) > 1 else ""
+        unit = "items"
+
+        if cmd == "info":
+            self.label = arg
+            self.show()
+        elif cmd == "note":
+            self.note = arg
+            self.show()
+        elif cmd == "detail" and len(fields) > 2:
+            self.job.call("setDescriptionField",
+                          GLib.Variant("(uss)", (0, arg, fields[2])))
+        elif cmd == "log" and len(fields) > 2:
+            # Field 1, and there is no field 2: the job model behind this
+            # interface carries exactly two, and anything further is
+            # discarded without complaint at the other end.
+            #
+            # The tail arrives one line per field, because the protocol
+            # itself is one instruction per line. Joined back up with the
+            # newlines the job view does render.
+            self.job.call("setDescriptionField",
+                          GLib.Variant("(uss)", (1, arg, "\n".join(fields[2:]))))
+        elif cmd == "total":
+            self.progress("setTotalAmount", GLib.Variant("(ts)", (int(arg), unit)))
+        elif cmd == "done":
+            self.progress("setProcessedAmount", GLib.Variant("(ts)", (int(arg), unit)))
+        elif cmd == "percent":
+            self.progress("setPercent", GLib.Variant("(u)", (int(arg),)))
+        elif cmd == "suspended":
+            self.paused = arg == "1"
+            # The desktop marks a paused entry itself, so the note that said
+            # it is about to pause has done its job.
+            self.note = ""
+            self.show()
+            self.job.call("setSuspended", GLib.Variant("(b)", (self.paused,)))
+            if not self.paused:
+                for method, variant in self.held.items():
+                    self.job.call(method, variant)
+                self.held.clear()
+        elif cmd == "end":
+            self.job.close(arg)
+            return False
+        elif cmd == "killed":
+            self.job.close(code=1)
+            return False
+        return True
+
+
+def drain():
+    for _ in sys.stdin:
+        pass
+
+
 def main():
+    controls = "--controls" in sys.argv[1:]
+
     job = Job()
     try:
-        job.open()
+        job.open(controls)
     except GLib.Error:
         # No job server on this desktop (anything that is not Plasma). Same
         # deal as a missing binding: drain stdin, stay out of the way.
-        for _ in sys.stdin:
-            pass
+        drain()
         return 0
 
-    unit = "items"
-    try:
-        for line in sys.stdin:
-            fields = line.rstrip("\n").split("\t")
-            cmd = fields[0]
-            arg = fields[1] if len(fields) > 1 else ""
+    entry = Entry(job)
+    loop = GLib.MainLoop()
+    pending = b""
 
-            if cmd == "info":
-                job.call("setInfoMessage", GLib.Variant("(s)", (arg,)))
-            elif cmd == "detail" and len(fields) > 2:
-                job.call("setDescriptionField",
-                         GLib.Variant("(uss)", (0, arg, fields[2])))
-            elif cmd == "log" and len(fields) > 2:
-                # Field 1, and there is no field 2: the job model behind this
-                # interface carries exactly two, and anything further is
-                # discarded without complaint at the other end.
-                #
-                # The tail arrives one line per field, because the protocol
-                # itself is one instruction per line. Joined back up with the
-                # newlines the job view does render.
-                job.call("setDescriptionField",
-                         GLib.Variant("(uss)", (1, arg, "\n".join(fields[2:]))))
-            elif cmd == "total":
-                job.call("setTotalAmount", GLib.Variant("(ts)", (int(arg), unit)))
-            elif cmd == "done":
-                job.call("setProcessedAmount", GLib.Variant("(ts)", (int(arg), unit)))
-            elif cmd == "percent":
-                job.call("setPercent", GLib.Variant("(u)", (int(arg),)))
-            elif cmd == "end":
-                job.close(arg)
-                break
-    except (ValueError, IndexError):
-        # A malformed line is a bug on the writing side, not a reason to leave
-        # a stuck progress bar on somebody's desktop.
-        pass
+    def readable(fd, _condition):
+        nonlocal pending
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            chunk = b""
+        if not chunk:
+            loop.quit()
+            return False
+
+        pending += chunk
+        while b"\n" in pending:
+            line, pending = pending.split(b"\n", 1)
+            fields = line.decode("utf-8", "replace").split("\t")
+            try:
+                if not entry.handle(fields):
+                    loop.quit()
+                    return False
+            except (ValueError, IndexError):
+                # A malformed line is a bug on the writing side. Skipped, the
+                # next one brings the entry up to date again.
+                pass
+        return True
+
+    # A main loop rather than a plain read loop: the clicks arrive as D-Bus
+    # signals, and those are only delivered while the loop runs.
+    fd_add(GLib.PRIORITY_DEFAULT, 0, GLib.IOCondition.IN | GLib.IOCondition.HUP,
+           readable)
+    try:
+        loop.run()
     except KeyboardInterrupt:
         pass
     finally:

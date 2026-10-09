@@ -160,6 +160,23 @@ a hundred and sixty packages at a time. pacman's other (n/m) sequences
 (checking keys, package integrity, loading package files) each count up to the
 same total and are deliberately ignored.
 
+# CANCEL AND PAUSE
+
+The progress entry has a *Cancel* and a *Pause* button. Neither ever stops
+pacman while it installs.
+
+- While pacman syncs and downloads, a click stops it at once.
+- Once pacman checks and installs, the click takes effect when that is done.
+  For a cancel a notification says so, because the desktop removes the progress
+  entry two seconds after the click.
+- An AUR build stops at once, unless paru is installing at that moment. Then it
+  stops right after.
+- A Flatpak update stops at once. An AppImage update finishes first.
+
+On resume the stopped step runs again. What was already downloaded stays in
+the cache. After a cancel a notification says the computer can be switched off.
+The run does not count as done, so the next hourly check starts it again.
+
 # HOW LONG NOTIFICATIONS STAY
 
 A message that reports the machine still needing a person stays on screen
@@ -196,7 +213,8 @@ so the desktop presents an administrator password prompt reading "Power off the
 system while an application is inhibiting this". That string is shipped
 untranslated by systemd and does not mention updates, and no KDE dialog
 explains the situation either. Only *systemctl*(1) names the inhibitor and its
-reason. Hence the notification.
+reason. Hence the notification. To switch off right away, click *Cancel* on
+the progress entry (see *CANCEL AND PAUSE*).
 
 A hard power-off (holding the power button, or losing mains power) is not
 preventable. On the next run a leftover _/var/lib/pacman/db.lck_ is removed if

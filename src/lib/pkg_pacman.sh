@@ -51,6 +51,12 @@ CAU_PACMAN_DL_AWK='
 	retrieving && / downloading\.\.\.$/ { n++; name = $1 }
 	END { print n + 0, name }'
 
+# What pacman prints once the downloads are done: it checks, then runs the
+# hooks, then installs. From the first of these on, pacman must not be
+# interrupted any more (see control.sh). Not anchored, because with a progress
+# bar these lines start with a counter or a carriage return.
+CAU_PACMAN_COMMIT_RE='checking keyring|checking keys in keyring|checking package integrity|loading package files|checking for file conflicts|checking available disk space|pre-transaction hooks|Processing package changes|(upgrading|installing|reinstalling|downgrading|removing) [^[:space:]]+'
+
 # _cau_pacman_progress_watch <logfile>
 # Feeds the desktop's progress bar by watching pacman work, through the three
 # phases a pacman run has: first it works out what the upgrade consists of,
@@ -199,10 +205,10 @@ _cau_pacman_exec() {
 	cau_have stdbuf && buffered=(stdbuf -oL)
 
 	if [[ -n $CAU_INTERACTIVE ]]; then
-		"${buffered[@]}" pacman "$@" 2>&1 | tee "$log"
+		cau_work pacman "$log" "${buffered[@]}" pacman "$@" 2>&1 | tee "$log"
 		rc="${PIPESTATUS[0]}"
 	else
-		"${buffered[@]}" pacman "$@" > "$log" 2>&1
+		cau_work pacman "$log" "${buffered[@]}" pacman "$@" > "$log" 2>&1
 		rc=$?
 	fi
 
@@ -317,6 +323,13 @@ cau_pacman_update() {
 		cau_info "Running a full system upgrade (pending list unavailable)"
 	fi
 
+	# Clicked while checkupdates ran: no start notice for an update that is
+	# paused or not going to happen.
+	if ! cau_control_wait; then
+		CAU_PACMAN_COUNT=0
+		return 0
+	fi
+
 	# Say so before the transaction starts, not after it finishes.
 	#
 	# While an upgrade runs, a shutdown request is refused by logind and the
@@ -357,6 +370,18 @@ cau_pacman_update() {
 		fi
 
 		cat "$log" >> "$CAU_RUNLOG" 2>/dev/null
+
+		# Stopped from the desktop, not failed. After a pause the same attempt
+		# runs again; what was downloaded so far is still in the cache.
+		if cau_control_stopped || cau_control_cancelled; then
+			cau_control_wait && continue
+			cau_info "pacman was stopped from the desktop"
+			rm -f "$log"
+			CAU_PACMAN_COUNT=0
+			CAU_PACMAN_HELD=''
+			return 0
+		fi
+
 		kind="$(_cau_pacman_classify "$log")"
 		cau_warn "pacman -Syu failed ($kind)"
 
@@ -374,7 +399,8 @@ cau_pacman_update() {
 				pacman -Qq archlinux-keyring &> /dev/null && keyrings+=(archlinux-keyring)
 				pacman -Qq cachyos-keyring   &> /dev/null && keyrings+=(cachyos-keyring)
 				if (( ${#keyrings[@]} )); then
-					cau_run_logged pacman -Sy --noconfirm --color never "${keyrings[@]}" || true
+					cau_run_logged cau_work other '' \
+						pacman -Sy --noconfirm --color never "${keyrings[@]}" || true
 				fi
 				;;
 

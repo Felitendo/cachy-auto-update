@@ -418,3 +418,28 @@ msgstr "Diese Pakete nie aktualisieren"
 #. Settings labels
 msgid "Clean the AUR build caches"
 msgstr "AUR-Build-Caches aufräumen"
+
+msgid "The last run was cancelled. It will run again later."
+msgstr "Der letzte Lauf wurde abgebrochen. Er läuft später erneut."
+
+#. Cancel and pause
+msgid "Stopping the update"
+msgstr "Update wird abgebrochen"
+
+msgid ""
+"The current step is finished first. Please leave the computer switched on "
+"until then."
+msgstr ""
+"Der laufende Schritt wird noch zu Ende gebracht. Bitte den Rechner bis "
+"dahin eingeschaltet lassen."
+
+msgid "Pausing once the current step is done"
+msgstr "Wird nach dem laufenden Schritt pausiert"
+
+msgid "Update stopped"
+msgstr "Update abgebrochen"
+
+msgid "You can switch off the computer now. The update will run again later."
+msgstr ""
+"Der Rechner kann jetzt ausgeschaltet werden. Das Update läuft später "
+"erneut."

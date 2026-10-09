@@ -21,6 +21,17 @@ cau_flatpak_pending_system() {
 	printf '%s\n' "$out"
 }
 
+# _cau_flatpak_run <command> [args...]
+# A Flatpak command that Cancel and Pause can stop. After a pause it runs
+# again, and ostree keeps what it had already fetched.
+_cau_flatpak_run() {
+	while :; do
+		cau_run_logged cau_work flatpak '' "$@" && return 0
+		cau_control_stopped && cau_control_wait && continue
+		return 1
+	done
+}
+
 # cau_flatpak_update
 # Failures are reported but never abort the rest of the run.
 cau_flatpak_update() {
@@ -34,8 +45,9 @@ cau_flatpak_update() {
 	# Nothing is countable until that has finished, so the bar creeps rather
 	# than waiting at the start of the step for it.
 	cau_progress_creep_start
-	cau_run_logged flatpak update --appstream --system --noninteractive || true
+	_cau_flatpak_run flatpak update --appstream --system --noninteractive || true
 	cau_progress_creep_stop
+	cau_control_cancelled && return 0
 
 	pending="$(cau_flatpak_pending_system)"
 	if (( pending > 0 )); then
@@ -45,10 +57,13 @@ cau_flatpak_update() {
 		# only reports this side makes while a ticker is running are further
 		# along than the ticker ever gets.
 		cau_progress_creep_start
-		if cau_run_logged flatpak update --system --noninteractive --assumeyes; then
+		if _cau_flatpak_run flatpak update --system --noninteractive --assumeyes; then
 			cau_progress_creep_stop
 			CAU_FLATPAK_COUNT=$(( CAU_FLATPAK_COUNT + pending ))
 			cau_progress_item "$pending"
+		elif cau_control_cancelled; then
+			cau_progress_creep_stop
+			return 0
 		else
 			cau_progress_creep_stop
 			cau_warn "System Flatpak update failed"
@@ -59,6 +74,7 @@ cau_flatpak_update() {
 	fi
 
 	while read -r user uid home; do
+		cau_control_cancelled && return 0
 		[[ -d "$home/.local/share/flatpak" ]] || continue
 
 		count="$(cau_as_user "$user" "$uid" flatpak remote-ls --user --updates \
@@ -67,10 +83,12 @@ cau_flatpak_update() {
 		(( count > 0 )) || continue
 
 		cau_info "Updating $count user Flatpak(s) for $user"
-		if cau_run_logged cau_as_user "$user" "$uid" \
+		if _cau_flatpak_run cau_as_user "$user" "$uid" \
 			flatpak update --user --noninteractive --assumeyes
 		then
 			CAU_FLATPAK_COUNT=$(( CAU_FLATPAK_COUNT + count ))
+		elif cau_control_cancelled; then
+			return 0
 		else
 			cau_warn "User Flatpak update failed for $user"
 			rc=1
@@ -80,7 +98,7 @@ cau_flatpak_update() {
 	# Unused runtimes are the Flatpak equivalent of orphaned packages. This is
 	# removal of installed software, not cache trimming, so it belongs behind
 	# RemoveOrphans rather than CleanCache.
-	if [[ $CFG_REMOVE_ORPHANS == yes ]]; then
+	if [[ $CFG_REMOVE_ORPHANS == yes ]] && ! cau_control_cancelled; then
 		cau_run_logged flatpak uninstall --system --unused --noninteractive --assumeyes || true
 	fi
 

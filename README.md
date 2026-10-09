@@ -46,7 +46,7 @@ Press **1** to turn automatic updates on or off. **6** has all the settings.
 | Battery below 30 % | ⏸️ Waits (on power it runs) |
 | A game is running | ⏸️ Waits |
 | pacman, yay or paru is running | ⏸️ Waits |
-| Shutdown or suspend during an update | 🚫 Blocked until it is done |
+| Shutdown or suspend during an update | 🚫 Blocked until it is done, or until you click **Cancel** |
 | Restart after an update | ❌ Never on its own, you get a notification |
 
 ## More
@@ -67,6 +67,7 @@ Press **1** to turn automatic updates on or off. **6** has all the settings.
 <summary>Safety</summary>
 
 - A progress bar shows the step and the package.
+- **Cancel** and **Pause** on the progress bar never stop pacman while it installs. They wait until that part is done.
 - On Btrfs with snapper (the CachyOS default) every update gets a snapshot before and after.
 - A lock file left by a power cut is removed on the next run.
 - Package replacements are handled on their own. File conflicts are never overwritten.

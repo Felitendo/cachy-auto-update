@@ -67,6 +67,7 @@ cau_appimage_update() {
 
 	while read -r user uid; do
 		[[ -n $user ]] || continue
+		cau_control_cancelled && break
 
 		mapfile -t cmd < <(_cau_gearlever_cmd "$user" "$uid")
 		(( ${#cmd[@]} )) || continue
@@ -84,10 +85,13 @@ cau_appimage_update() {
 		fi
 
 		cau_info "Updating $count AppImage(s) for $user"
-		if cau_run_logged cau_as_user "$user" "$uid" timeout 1800 \
+		# Gear Lever swaps the files in place, so Cancel and Pause wait for it.
+		if cau_run_logged cau_work other '' cau_as_user "$user" "$uid" timeout 1800 \
 			"${cmd[@]}" --update --all -y
 		then
 			CAU_APPIMAGE_COUNT=$(( CAU_APPIMAGE_COUNT + count ))
+		elif cau_control_cancelled; then
+			break
 		else
 			cau_warn "AppImage update failed for $user"
 			rc=1

@@ -396,6 +396,10 @@ cau_ui_status() {
 		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \
 			"$(cau_msg "The last run was stopped before it finished.")" \
 			"$CAU_C_RESET"
+	elif [[ $result == cancelled ]]; then
+		printf '\n  %s%s%s\n' "$CAU_C_DIM" \
+			"$(cau_msg "The last run was cancelled. It will run again later.")" \
+			"$CAU_C_RESET"
 	fi
 	if [[ $reboot == 1 ]]; then
 		printf '\n  %s%s%s\n' "$CAU_C_YELLOW" \

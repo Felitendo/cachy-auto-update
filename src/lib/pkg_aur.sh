@@ -149,16 +149,32 @@ cau_aur_update() {
 	mapfile -t args < <(cau_aur_helper_args)
 	cau_progress_creep_start
 
-	if cau_run_logged cau_as_build_user "$CAU_AUR_HELPER" "${args[@]}"; then
-		cau_progress_creep_stop
-		CAU_AUR_COUNT="$pending"
-		cau_progress_item "$pending"
-		cau_state_clear aur_failures
-		return 0
-	fi
+	while :; do
+		if cau_run_logged cau_work aur '' \
+			cau_as_build_user "$CAU_AUR_HELPER" "${args[@]}"
+		then
+			cau_progress_creep_stop
+			CAU_AUR_COUNT="$pending"
+			cau_progress_item "$pending"
+			cau_state_clear aur_failures
+			return 0
+		fi
+
+		# Paused from the desktop: build again once it resumes. Packages
+		# that were installed before the pause are not pending any more.
+		cau_control_stopped && cau_control_wait && continue
+		break
+	done
 
 	cau_progress_creep_stop
 	CAU_AUR_COUNT=0
+
+	# Cancelled, which is not a failed build.
+	if cau_control_stopped || cau_control_cancelled; then
+		cau_info "AUR update was stopped from the desktop"
+		return 0
+	fi
+
 	failures="$(cau_state_read aur_failures 0)"
 	[[ $failures =~ ^[0-9]+$ ]] || failures=0
 	failures=$(( failures + 1 ))

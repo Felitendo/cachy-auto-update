@@ -14,7 +14,7 @@ set -uo pipefail
 
 CAU_LIBDIR="${CAU_LIBDIR:-@LIBDIR@}"
 
-for _mod in common config users conditions locks notify progress \
+for _mod in common config users conditions locks notify progress control \
             pkg_pacman pkg_aur pkg_flatpak pkg_appimage; do
 	# shellcheck source=/dev/null
 	if ! source "$CAU_LIBDIR/$_mod.sh"; then
@@ -108,6 +108,7 @@ if (( ! FORCE )); then
 fi
 
 cau_state_write last_run "$(date +%s)"
+cau_control_reset
 
 if (( ! FORCE )); then
 	CAU_SKIP_REASON=''
@@ -201,25 +202,36 @@ if ! cau_pacman_update; then
 	failed=1
 fi
 
-if [[ $CFG_AUR == yes ]]; then
+# Between the steps the run waits while it is paused, and stops once it was
+# cancelled (see control.sh).
+if [[ $CFG_AUR == yes ]] && cau_control_wait; then
 	cau_aur_update || failed=1
 fi
 
-if [[ $CFG_FLATPAK == yes ]]; then
+if [[ $CFG_FLATPAK == yes ]] && cau_control_wait; then
 	cau_flatpak_update || failed=1
 fi
 
-if [[ $CFG_APPIMAGE == yes ]]; then
+if [[ $CFG_APPIMAGE == yes ]] && cau_control_wait; then
 	cau_appimage_update || true   # best effort; never marks the run as failed
 fi
 
-cau_pacman_cleanup
-cau_aur_clean_caches
+if cau_control_wait; then
+	cau_pacman_cleanup
+	cau_aur_clean_caches
+fi
+
+# A step that was stopped by Cancel returns success, so failed still only
+# means something really went wrong.
+cancelled=0
+cau_control_cancelled && cancelled=1
 
 # The work is over; the bar goes away and the result takes over from here. No
 # label on a failure: the notification below carries that, and it stays up
 # until it is dismissed.
-if (( failed )); then
+if (( cancelled )); then
+	cau_progress_end cancelled
+elif (( failed )); then
 	cau_progress_end failed
 else
 	cau_progress_end ok
@@ -245,6 +257,13 @@ if (( failed )); then
 	[[ $CFG_NOTIFY_ERROR == yes ]] && cau_notify_tagged run yes critical yes \
 		"Update failed" \
 		"Something went wrong while updating. Run 'cachy-auto-update log' for details."
+elif (( cancelled )); then
+	# Not a success either, so the next hourly check runs it again.
+	cau_state_write last_result cancelled
+	cau_info "Update run cancelled from the desktop"
+	cau_notify_tagged run no normal no \
+		"Update stopped" \
+		"You can switch off the computer now. The update will run again later."
 else
 	cau_state_write last_result ok
 	cau_state_write last_success "$(date +%s)"
@@ -268,7 +287,8 @@ if [[ -n $CAU_PACMAN_HELD ]]; then
 			"%s could not be updated and was skipped. Everything else is up to date." \
 			"$CAU_PACMAN_HELD"
 	fi
-else
+elif (( ! cancelled )); then
+	# A cancelled run may not have got that far, so it knows nothing new.
 	cau_state_clear held_back
 fi
 
