@@ -396,3 +396,7 @@ msgstr ""
 
 msgid "Never update these packages"
 msgstr ""
+
+#. Settings labels
+msgid "Clean the AUR build caches"
+msgstr ""

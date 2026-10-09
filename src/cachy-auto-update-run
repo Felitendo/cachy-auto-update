@@ -214,6 +214,7 @@ if [[ $CFG_APPIMAGE == yes ]]; then
 fi
 
 cau_pacman_cleanup
+cau_aur_clean_caches
 
 # The work is over; the bar goes away and the result takes over from here. No
 # label on a failure: the notification below carries that, and it stays up

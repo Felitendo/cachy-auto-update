@@ -143,6 +143,7 @@ CAU_SETTINGS=(
 	"AutoResolveConflicts|bool|yes|Resolve package conflicts automatically"
 	"CleanCache|bool|yes|Trim the package cache"
 	"KeepOldPackages|choice:0 1 2 3 5|3|Cached versions to keep"
+	"CleanAURCache|bool|yes|Clean the AUR build caches"
 	"RemoveOrphans|bool|no|Remove packages nothing needs any more"
 	"IgnorePkg|text||Never update these packages"
 )

@@ -172,3 +172,71 @@ cau_aur_update() {
 	cau_warn "AUR update failed (attempt $failures); will retry on the next run"
 	return 0
 }
+
+# Where AUR helpers build, below a cache directory: one folder per package,
+# each with a PKGBUILD in it.
+CAU_AUR_CACHES=(paru/clone yay Shelly)
+
+# Programs that build in those folders. While one runs, nothing is cleaned.
+CAU_AUR_BUILDERS=(paru yay makepkg shelly shelly-ui)
+
+# cau_aur_clean_caches
+# Removes build leftovers from the AUR helpers' caches: built packages,
+# downloaded sources, and the src/ and pkg/ build folders. PKGBUILDs, patches
+# and git data stay.
+#
+# paru's CleanAfter does the same for paru, but only where somebody turned it
+# on. Without it every version of every -bin package stays: 32 GB of
+# ~/.cache/paru on one laptop.
+cau_aur_clean_caches() {
+	local user uid home base p freed total=0
+
+	[[ $CFG_CLEAN_AUR_CACHE == yes ]] || return 0
+
+	for p in "${CAU_AUR_BUILDERS[@]}"; do
+		if cau_process_running "$p"; then
+			cau_info "Not cleaning the AUR caches while $p is running"
+			return 0
+		fi
+	done
+
+	while read -r user base; do
+		[[ -d $base ]] || continue
+		for p in "${CAU_AUR_CACHES[@]}"; do
+			[[ -d $base/$p ]] || continue
+			freed="$(_cau_aur_clean_cache "$user" "$base/$p")"
+			[[ $freed =~ ^[0-9]+$ ]] && total=$(( total + freed ))
+		done
+	done < <(
+		printf '%s %s\n' "$CAU_BUILD_USER" "$CAU_CACHEDIR"
+		cau_human_users | while read -r user uid home; do
+			printf '%s %s\n' "$user" "$home/.cache"
+		done
+	)
+
+	(( total >= 1048576 )) || return 0
+	cau_info "Cleaned the AUR caches: $(( total / 1048576 )) MiB freed"
+}
+
+# _cau_aur_clean_cache <user> <dir>
+# Prints how many bytes it freed. Runs as the owner of the cache, so a symlink
+# in there can never make root delete something else.
+#
+# Only files that a build made are removed: built packages, anything over 1 MiB
+# (the AUR takes no file that large, so those were downloaded), and the build
+# folders. Version control checkouts of -git sources stay, so the next build
+# only fetches what is new.
+_cau_aur_clean_cache() {
+	runuser -u "$1" -- sh -c '
+		before=$(du -sb "$1" 2>/dev/null | cut -f1)
+		for d in "$1"/*/; do
+			[ -L "${d%/}" ] && continue
+			[ -f "${d}PKGBUILD" ] || continue
+			rm -rf -- "${d}src" "${d}pkg"
+			find "$d" -mindepth 1 -maxdepth 1 -type f \
+				\( -name "*.pkg.tar*" -o -size +1M \) -delete
+		done
+		after=$(du -sb "$1" 2>/dev/null | cut -f1)
+		echo $(( ${before:-0} - ${after:-0} ))
+	' sh "$2" 2>/dev/null
+}

@@ -71,6 +71,7 @@ Press **1** to turn automatic updates on or off. **6** has all the settings.
 - A lock file left by a power cut is removed on the next run.
 - Package replacements are handled on their own. File conflicts are never overwritten.
 - A signature error refreshes the keyring once and tries again.
+- Old package versions and AUR build leftovers are cleaned up, so the caches do not fill the disk.
 
 </details>
 

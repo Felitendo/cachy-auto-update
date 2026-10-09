@@ -414,3 +414,7 @@ msgstr "Nicht mehr benötigte Pakete entfernen"
 
 msgid "Never update these packages"
 msgstr "Diese Pakete nie aktualisieren"
+
+#. Settings labels
+msgid "Clean the AUR build caches"
+msgstr "AUR-Build-Caches aufräumen"

@@ -95,6 +95,12 @@ to invoke *pacman* without one. No user password is ever stored anywhere.
 A failed AUR build is not reported the first time it happens; only a failure
 that repeats is worth waking somebody up for.
 
+After each run, _CleanAURCache_ removes build leftovers from the caches of
+paru, yay and Shelly, for the build account and for every user: built packages,
+downloaded sources, and the _src/_ and _pkg/_ build folders. PKGBUILDs, patches
+and git data stay. It runs as the owner of each cache, and not while one of
+those helpers is running.
+
 Flatpak system installations are updated directly as root, user installations
 inside each user's own account. AppImages are updated through Gear Lever, for
 users with a graphical session, and AppImages whose application is currently
