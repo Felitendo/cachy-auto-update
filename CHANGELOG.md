@@ -2,6 +2,18 @@
 
 What each release brings, newest first. The [GitHub releases](https://github.com/LoonixTools/cachy-auto-update/releases) add every commit that went into it.
 
+## v1.4.0
+
+_2026-10-10_
+
+Welcome to cachy-auto-update `v1.4.0`! You can now stop an update from the progress bar, and the AUR caches no longer fill up your disk.
+
+### Highlights
+
+- **Cancel** and **Pause** buttons on the progress bar
+- Never stops pacman while it installs, it waits for a safe moment
+- AUR build leftovers of paru, yay and Shelly are cleaned up (`CleanAURCache`)
+
 ## v1.3.2
 
 _2026-09-28_
